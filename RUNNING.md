@@ -8,16 +8,21 @@ LLM agent experiment framework.
 ## Table of Contents
 
 1. [System Requirements](#1-system-requirements)
-2. [Get the Code](#2-get-the-code)
-3. [Set Your API Key](#3-set-your-api-key)
-4. [Python Environment](#4-python-environment)
-5. [Start Docker Infrastructure](#5-start-docker-infrastructure)
-6. [Verify Infrastructure Health](#6-verify-infrastructure-health)
-7. [Run Experiment A — Write Engine Ablation](#7-run-experiment-a--write-engine-ablation)
-8. [Run Experiment B — Read Engine Ablation](#8-run-experiment-b--read-engine-ablation)
-9. [Run Experiment C — Hybrid Comparison](#9-run-experiment-c--hybrid-comparison)
-10. [Generate Paper Figures](#10-generate-paper-figures)
-11. [Full CLI Reference](#11-full-cli-reference)
+2. [Running on Windows](#2-running-on-windows)
+3. [Get the Code](#3-get-the-code)
+4. [Set Your API Key](#4-set-your-api-key)
+5. [Python Environment](#5-python-environment)
+6. [Start Docker Infrastructure](#6-start-docker-infrastructure)
+7. [Verify Infrastructure Health](#7-verify-infrastructure-health)
+8. [Run Experiment A — Write Engine Ablation](#8-run-experiment-a--write-engine-ablation)
+9. [Run Experiment B — Read Engine Ablation](#9-run-experiment-b--read-engine-ablation)
+10. [Run Experiment C — Hybrid Comparison](#10-run-experiment-c--hybrid-comparison)
+11. [Generate Paper Figures](#11-generate-paper-figures)
+12. [Full CLI Reference](#12-full-cli-reference)
+13. [How Algorithm Comparison Data is Captured](#13-how-algorithm-comparison-data-is-captured)
+14. [Cost Estimates](#14-cost-estimates)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Running Without Docker (local Redis only)](#16-running-without-docker-local-redis-only)
 12. [Cost Estimates](#12-cost-estimates)
 13. [Troubleshooting](#13-troubleshooting)
 14. [Running Without Docker (local Redis only)](#14-running-without-docker-local-redis-only)
@@ -38,7 +43,105 @@ LLM agent experiment framework.
 
 ---
 
-## 2. Get the Code
+## 2. Running on Windows
+
+**Short answer: Yes, Windows works.** The recommended path is WSL2 — it
+gives you a full Linux environment on Windows with zero friction. Native
+Windows (PowerShell) also works with small differences noted below.
+
+---
+
+### Option A — WSL2 + Ubuntu (Recommended)
+
+WSL2 runs a real Linux kernel inside Windows. Docker Desktop integrates
+with it directly, and you follow the rest of this guide verbatim.
+
+**Step 1: Install WSL2**
+
+Open PowerShell as Administrator:
+
+```powershell
+wsl --install -d Ubuntu
+# Restart your machine when prompted
+```
+
+After restart, open the **Ubuntu** app from the Start menu, create a
+username and password, then continue from [Section 3](#3-get-the-code)
+inside that Ubuntu terminal.
+
+**Step 2: Install Docker Desktop with WSL2 backend**
+
+1. Download Docker Desktop from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/)
+2. During install, make sure **"Use WSL2 instead of Hyper-V"** is checked
+3. After install → Docker Desktop Settings → Resources → WSL Integration →
+   enable integration for your Ubuntu distro
+
+Everything else — `docker compose`, `python`, `pip`, `git` — runs inside
+the Ubuntu terminal exactly as documented.
+
+---
+
+### Option B — Native Windows (PowerShell)
+
+All Python and Docker commands work natively. The differences vs Linux/Mac:
+
+| Step | Linux / Mac | Windows PowerShell |
+|------|-------------|-------------------|
+| Set API key | `export ANTHROPIC_API_KEY=sk-...` | `$env:ANTHROPIC_API_KEY = "sk-..."` |
+| Persist key across sessions | Add to `~/.bashrc` | Add to PowerShell `$PROFILE` |
+| Activate venv | `source .venv/bin/activate` | `.venv\Scripts\Activate.ps1` |
+| Test Redis locally | `redis-cli -p 6379 ping` | `docker exec redis-region-a redis-cli ping` |
+| Source .env file | `source .env` | Does not work — set vars manually (see below) |
+| Line endings | LF | CRLF — no impact on Python execution |
+
+**Setting the API key in PowerShell (persisted):**
+
+```powershell
+# Add to your PowerShell profile so it survives restarts:
+notepad $PROFILE
+# Add this line and save:
+$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+```
+
+**Activating the virtual environment in PowerShell:**
+
+```powershell
+# If you see "running scripts is disabled", run this once:
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Then activate normally:
+.venv\Scripts\Activate.ps1
+```
+
+**Running experiment scripts in PowerShell:**
+
+```powershell
+# Multi-line commands use backtick ` instead of backslash \
+python -m experiments.run_experiment_c `
+    --iterations 100 `
+    --best-write W1 `
+    --best-read R1 `
+    --output results/experiment_c
+```
+
+---
+
+### Option C — Cloud Environment (No local setup)
+
+Best if you want to skip Docker on your machine entirely.
+
+| Platform | Free tier | Notes |
+|----------|-----------|-------|
+| **GitHub Codespaces** | 60 hrs/month free | Linux + Docker pre-installed; open repo and go |
+| **Google Cloud Shell** | Always free | Docker available; 5 GB persistent disk |
+| **AWS EC2 t3.medium** | ~$0.04/hr | Best for 1000-iteration paper runs |
+| **Google Colab** | Free (no Docker) | Redis-only mode only (see Section 16) |
+
+For Codespaces: open the repo on GitHub → click **Code → Codespaces → New codespace** → follow this guide from Section 4.
+
+---
+
+## 3. Get the Code
 
 ```bash
 git clone https://github.com/padmajeet-mhaske/pedomatic.git
@@ -47,7 +150,7 @@ cd pedomatic/multi-region-llm
 
 ---
 
-## 3. Set Your API Key
+## 4. Set Your API Key
 
 The key is **always read from the environment** — never stored in any file.
 
@@ -72,7 +175,7 @@ echo $ANTHROPIC_API_KEY   # should print your key (not empty)
 
 ---
 
-## 4. Python Environment
+## 5. Python Environment
 
 Create an isolated virtual environment to avoid package conflicts:
 
@@ -92,7 +195,7 @@ The install will download `sentence-transformers` and its model weights
 
 ---
 
-## 5. Start Docker Infrastructure
+## 6. Start Docker Infrastructure
 
 From the `multi-region-llm/` directory:
 
@@ -117,7 +220,7 @@ python config/toxiproxy_setup.py
 
 ---
 
-## 6. Verify Infrastructure Health
+## 7. Verify Infrastructure Health
 
 Run this quick sanity check before starting experiments:
 
@@ -148,7 +251,9 @@ print('Claude OK:', r.usage)
 
 ---
 
-## 7. Run Experiment A — Write Engine Ablation
+## 8. Run Experiment A — Write Engine Ablation
+
+> **Windows users:** use `python` instead of `python3`, and replace `\` line continuation with `` ` `` in PowerShell.
 
 Compares W0 (naive baseline) vs W1, W2, W3, W4 with read fixed at R0.
 
@@ -190,7 +295,7 @@ results/experiment_a/
 
 ---
 
-## 8. Run Experiment B — Read Engine Ablation
+## 9. Run Experiment B — Read Engine Ablation
 
 Compares R0 (full dump baseline) vs R1, R2, R3, R4 with write fixed at W0.
 
@@ -229,7 +334,7 @@ results/experiment_b/
 
 ---
 
-## 9. Run Experiment C — Hybrid Comparison
+## 10. Run Experiment C — Hybrid Comparison
 
 Combines the best write algorithm (from Exp A results) with the best read
 algorithm (from Exp B results). Defaults to W1 + R1.
@@ -277,7 +382,7 @@ results/experiment_c/
 
 ---
 
-## 10. Generate Paper Figures
+## 11. Generate Paper Figures
 
 After all three experiments have produced output:
 
@@ -306,7 +411,7 @@ Figures are saved to `figures/`:
 
 ---
 
-## 11. Full CLI Reference
+## 12. Full CLI Reference
 
 All three experiment scripts share these common flags:
 
@@ -335,7 +440,168 @@ All three experiment scripts share these common flags:
 
 ---
 
-## 12. Cost Estimates
+## 13. How Algorithm Comparison Data is Captured
+
+Understanding the data pipeline helps you know exactly what you're measuring
+and where to find results.
+
+---
+
+### The Measurement Loop (one iteration)
+
+Each iteration runs this sequence:
+
+```
+AgentSimulator.generate_session()
+        │
+        │  Multi-turn Claude conversation
+        │  → produces AgentSession (6 turns, each a TraceEntry)
+        ▼
+WriteEngine.write_session(session)
+        │
+        │  Writes traces to Redis + Cassandra
+        │  → measures write_latency_ms, flush_latency_ms
+        ▼
+ReadEngine.read_session(session)
+        │
+        │  Builds context payload, calls Claude to simulate Region B resuming
+        │  → measures handoff_latency_ms, token counts, cost
+        ▼
+MetricsCollector.record(IterationMetrics)
+        │
+        │  Appends one row to in-memory list
+        ▼
+CSV / JSON on disk (after all iterations)
+```
+
+---
+
+### What Each Layer Measures
+
+**Write engine** (`src/write_engines/w1_selective_flush.py` etc.)
+
+Each write algorithm returns a result object with:
+
+| Field | How it's measured |
+|-------|------------------|
+| `write_latency_ms` | `time.perf_counter()` around the Redis SET call per trace |
+| `flush_latency_ms` | `time.perf_counter()` around the Cassandra INSERT batch |
+| `total_bytes_written` | Sum of `len(content.encode("utf-8"))` for all traces |
+
+W1 only flushes on milestone events or when the unflushed buffer exceeds 50 KB,
+so its `flush_latency_ms` is measured less frequently than W0's (which flushes
+every trace). Lower `flush_latency_ms` mean + lower p99 = better write algorithm.
+
+**Read engine** (`src/read_engines/r1_hydration_protocol.py` etc.)
+
+Each read algorithm builds a context payload and calls Claude. It measures:
+
+| Field | How it's measured |
+|-------|------------------|
+| `handoff_latency_ms` | `time.perf_counter()` wrapping the full `call_claude()` |
+| `context_payload_bytes` | `len(json.dumps(message).encode("utf-8"))` per message |
+| `context_token_count` | `response.usage.input_tokens` from the real Claude API response |
+| `input_token_delta` | `count_tokens(full_payload) − count_tokens(compressed_payload)` using `client.messages.count_tokens()` |
+| `compression_ratio` | `full_payload_bytes / compressed_payload_bytes` |
+| `estimated_cost_usd` | `(input_tokens × $1.00 + output_tokens × $5.00) / 1,000,000` (Haiku pricing) |
+| `state_integrity_score` | Fraction of milestone trace keywords that appear in the hydrated context (0–1) |
+
+**Token counts are real** — the code calls `client.messages.count_tokens()`
+(Anthropic's pre-send counting endpoint) for the delta comparison, and reads
+`response.usage.input_tokens` from the actual Claude API response for the
+final count. Nothing is estimated from word counts.
+
+---
+
+### The IterationMetrics Row
+
+Every iteration produces one row in the CSV. Here's what a single row looks like:
+
+```
+iteration          = 42
+condition          = C1_W1_Selective
+write_algorithm    = W1
+read_algorithm     = R0
+session_id         = f3a9c1...
+write_latency_ms   = 1.23       ← local Redis write, should be < 2ms
+flush_latency_ms   = 18.4       ← Cassandra write (includes 120ms WAN sim)
+total_bytes_written= 4821
+handoff_latency_ms = 312.7      ← time for Region B to resume via Claude
+context_payload_bytes = 2940
+context_token_count= 387
+compression_ratio  = 1.0        ← R0 = no compression (baseline)
+input_token_delta  = 0          ← R0 = no savings vs itself
+estimated_cost_usd = 0.000412
+state_integrity_score = 1.0
+extra              = {"flush_ratio": 0.33}   ← algorithm-specific extras
+```
+
+---
+
+### Statistical Analysis
+
+After all iterations complete, `MetricsCollector` computes:
+
+**Summary stats** (`experiment_X_summary.csv`):
+- `p50`, `p95`, `p99`, `mean`, `std` for every numeric metric
+- Grouped by `condition` + `write_algorithm` + `read_algorithm`
+
+**Wilcoxon signed-rank tests** (`wilcoxon_<metric>.csv`):
+- Non-parametric test chosen because latency distributions are right-skewed (not normal)
+- Tests each optimized algorithm against the C0 baseline
+- Reports: `p_value`, `significant_p05`, `effect_size`, `median_reduction`
+
+```
+Example output row:
+metric           = handoff_latency_ms
+baseline         = C0_Baseline
+comparison       = C2_R1_Hydration
+n                = 100
+p_value          = 0.0003
+significant_p05  = True
+effect_size      = 1.84        ← Cohen's d equivalent
+median_reduction = 187.3 ms    ← median ms saved vs baseline
+```
+
+---
+
+### Output File Reference
+
+```
+results/
+├── experiment_a/
+│   ├── experiment_a_raw.csv        ← one row per iteration (all conditions)
+│   ├── experiment_a_raw.json       ← same data, JSON format
+│   ├── experiment_a_summary.csv    ← p50/p95/p99/mean per algorithm
+│   └── wilcoxon_write_latency_ms.csv
+│   └── wilcoxon_flush_latency_ms.csv
+├── experiment_b/
+│   ├── experiment_b_raw.csv
+│   ├── experiment_b_summary.csv
+│   └── wilcoxon_*.csv              ← one file per metric
+└── experiment_c/
+    ├── experiment_c_raw.csv
+    ├── experiment_c_summary.csv
+    └── wilcoxon_*.csv
+```
+
+Load results manually for custom analysis:
+
+```python
+import pandas as pd
+
+df = pd.read_csv("results/experiment_a/experiment_a_raw.csv")
+
+# Compare W1 vs W0 handoff latency
+w0 = df[df["write_algorithm"] == "W0"]["handoff_latency_ms"]
+w1 = df[df["write_algorithm"] == "W1"]["handoff_latency_ms"]
+print(f"W0 median: {w0.median():.1f}ms  W1 median: {w1.median():.1f}ms")
+print(f"Reduction: {w0.median() - w1.median():.1f}ms ({(1 - w1.median()/w0.median())*100:.1f}%)")
+```
+
+---
+
+## 14. Cost Estimates
 
 All estimates assume the default `claude-haiku-4-5` model
 ($1.00/M input tokens, $5.00/M output tokens).
@@ -353,7 +619,7 @@ costs by up to 90% on cache hits. Actual costs logged per-iteration in
 
 ---
 
-## 13. Troubleshooting
+## 15. Troubleshooting
 
 **`ANTHROPIC_API_KEY not set`**
 ```bash
@@ -416,7 +682,7 @@ Re-enable with `python config/toxiproxy_setup.py`.
 
 ---
 
-## 14. Running Without Docker (local Redis only)
+## 16. Running Without Docker (local Redis only)
 
 If Docker is unavailable, you can run a minimal version using only
 local Redis (no Cassandra, no Toxiproxy):

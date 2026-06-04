@@ -49,6 +49,7 @@ class R2ReadResult:
     state_integrity_score: float
     claude_response: str
     summary_text: str
+    hydrated_payload_text: str = ""  # text sent to receiving region (for LLM judge)
 
 
 class LLMSummarizationReader:
@@ -127,6 +128,9 @@ class LLMSummarizationReader:
         integrity = self._integrity_score(summary, session)
         payload_bytes = self._payload_bytes(resume_messages)
 
+        hydrated_text = "\n\n".join(
+            f"[{m['role'].upper()}]: {m['content']}" for m in resume_messages
+        )
         return R2ReadResult(
             session_id=session.session_id,
             algorithm="R2_LLMSummarization",
@@ -142,4 +146,5 @@ class LLMSummarizationReader:
             state_integrity_score=integrity,
             claude_response=result["content"],
             summary_text=summary,
+            hydrated_payload_text=hydrated_text,
         )

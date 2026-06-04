@@ -33,8 +33,9 @@ class R1ReadResult:
     input_token_delta: int         # tokens saved vs baseline full dump
     compression_ratio: float
     estimated_cost_usd: float
-    state_integrity_score: float   # 0-1: how well context was preserved
+    state_integrity_score: float   # 0-1: overwritten by LLM judge in runner
     claude_response: str
+    hydrated_payload_text: str = ""  # text sent to receiving region (for LLM judge)
 
 
 class HydrationProtocolReader:
@@ -113,6 +114,9 @@ class HydrationProtocolReader:
         token_delta = full_tokens - hydration_tokens
         integrity = self._integrity_score(session, hydration_msgs)
 
+        hydrated_text = "\n\n".join(
+            f"[{m['role'].upper()}]: {m['content']}" for m in hydration_msgs
+        )
         return R1ReadResult(
             session_id=session.session_id,
             algorithm="R1_HydrationProtocol",
@@ -125,4 +129,5 @@ class HydrationProtocolReader:
             estimated_cost_usd=result["cost_usd"],
             state_integrity_score=integrity,
             claude_response=result["content"],
+            hydrated_payload_text=hydrated_text,
         )

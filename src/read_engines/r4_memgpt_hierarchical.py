@@ -53,6 +53,7 @@ class R4ReadResult:
     state_integrity_score: float
     archival_summaries_count: int
     claude_response: str
+    hydrated_payload_text: str = ""  # text sent to receiving region (for LLM judge)
 
 
 class MemGPTHierarchicalReader:
@@ -167,6 +168,9 @@ class MemGPTHierarchicalReader:
         token_delta = full_tokens - resume_tokens
         integrity = self._integrity_score(session, tier)
 
+        hydrated_text = "\n\n".join(
+            f"[{m['role'].upper()}]: {m['content']}" for m in resume_messages
+        )
         return R4ReadResult(
             session_id=session.session_id,
             algorithm="R4_MemGPTHierarchical",
@@ -181,4 +185,5 @@ class MemGPTHierarchicalReader:
             state_integrity_score=integrity,
             archival_summaries_count=len(tier.archival_summaries),
             claude_response=result["content"],
+            hydrated_payload_text=hydrated_text,
         )

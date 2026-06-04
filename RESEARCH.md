@@ -386,3 +386,56 @@ a sequential handoff adds overhead without demonstrating the core benefit.
 
 **Paper section to update:** §4.1 (Write Engine Ablation) — add 2–3 sentences
 explaining the active-active framing before presenting W3 results.
+
+---
+
+### Critique R-02 — Keyword Overlap Metrics Are Insufficient (2026-06-04)
+
+**Criticism:** ROUGE / keyword token matching can show perfect overlap while entirely
+losing the thread of execution (e.g., reversing a boolean flag, forgetting a loop counter).
+`state_integrity_score` and `retrieval_accuracy_score` must be replaced with semantic
+evaluation via an LLM-as-a-Judge framework using an independent model.
+
+**Response / Fix Applied:**
+Created `src/llm_judge.py` with a dual-prompt LLMJudge class:
+
+**Evaluation 1 — Context Hydration Fidelity (`retrieval_accuracy_score`):**
+```
+[System: Rigorous Systems Evaluation Judge]
+Compare Hydrated Payload P_hyd against Ground Truth Trace T_gt.
+Identify all critical system milestones (decisions, variables, tool calls).
+Score = Milestones_preserved / Milestones_total
+Output: JSON float [0.0, 1.0]
+```
+
+**Evaluation 2 — Handoff State Continuity (`state_integrity_score`):**
+```
+[System: Agentic State Alignment Judge]
+Analyze Ground Truth Trace T_gt and Receiving Agent Response R_recv.
+Rate State Continuity 1–5:
+  5 = Perfect continuity, seamless task continuation
+  4 = Minor redundancy, state maintained
+  3 = State drift, minor variable forgotten
+  2 = Severe contradiction, acts against past decision
+  1 = Catastrophic state loss, treats session as new
+Normalized score = (score - 1) / 4  → [0.0, 1.0]
+```
+
+**Three new data inputs captured per iteration:**
+- `T_gt`: full ground truth (`session.get_messages()`)
+- `P_hyd`: hydrated payload text (added `hydrated_payload_text` field to R0–R4 results)
+- `R_recv`: receiving agent response (`read_result.claude_response`)
+
+**Cost implications:** Each iteration now makes 2 additional judge API calls (~$0.0005/iter
+at Haiku pricing). Over 100 iterations per condition × 5 conditions = 1,000 extra calls ≈ $0.50.
+Set `JUDGE_MODEL` env var to use a different model than the experiment model (recommended
+to avoid self-assessment bias).
+
+**Mock fallback:** `MOCK_CLAUDE=1` uses word-overlap heuristic for fidelity and keyword
+matching for continuity — no API calls, full pipeline still testable.
+
+**Files changed:** `src/llm_judge.py` (new), `src/handoff_runner.py`,
+`src/read_engines/r0–r4` (added `hydrated_payload_text`), `RESEARCH.md`
+
+**Paper section to update:** §3.2 (Evaluation Metrics) — replace heuristic descriptions
+with LLM judge prompts and rubric. Add footnote on judge model independence.

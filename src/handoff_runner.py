@@ -22,6 +22,7 @@ if os.environ.get("CASSANDRA_STUB", "").strip() != "1":
 
 from src.agent_simulator import AgentSimulator, AgentSession
 from src.metrics_collector import MetricsCollector, IterationMetrics
+from src.llm_judge import LLMJudge
 
 # Write engines
 from src.write_engines.w1_selective_flush import SelectiveFlushWriter
@@ -128,6 +129,10 @@ class BaselineReader:
         result = call_claude(messages=messages, model=self.model, max_tokens=512, use_cache=False)
         latency_ms = (time.perf_counter() - t0) * 1000
 
+        hydrated_text = "\n\n".join(
+            f"[{m['role'].upper()}]: {m['content']}" for m in messages
+        )
+
         from dataclasses import dataclass
         @dataclass
         class R0Result:
@@ -142,6 +147,7 @@ class BaselineReader:
             estimated_cost_usd: float
             state_integrity_score: float
             claude_response: str
+            hydrated_payload_text: str
 
         return R0Result(
             session_id=session.session_id,
@@ -155,6 +161,7 @@ class BaselineReader:
             estimated_cost_usd=result["cost_usd"],
             state_integrity_score=1.0,
             claude_response=result["content"],
+            hydrated_payload_text=hydrated_text,
         )
 
 
@@ -222,6 +229,10 @@ class HandoffRunner:
         # Toxiproxy API for WAN RTT measurement
         self._toxiproxy_api = "http://localhost:8474"
 
+        # LLM-as-a-Judge evaluator (independent model to avoid self-assessment bias)
+        judge_model = os.environ.get("JUDGE_MODEL", model)
+        self.judge = LLMJudge(model=judge_model)
+
     def _measure_wan_rtt(self) -> tuple[float, bool]:
         """Ping through Toxiproxy to measure actual simulated WAN RTT.
         Returns (rtt_ms, proxy_active). Falls back to 0ms if Toxiproxy not running.
@@ -242,32 +253,45 @@ class HandoffRunner:
         except Exception:
             return 0.0, False
 
-    def _retrieval_accuracy(self, session: AgentSession, read_result) -> float:
-        """Exact milestone ID match — what fraction of milestone traces were
-        included in the hydrated context payload.
-
-        Checks for trace_id presence in the claude_response or context payload.
-        Falls back to state_integrity_score if no read_result context available.
+    def _run_judge(
+        self,
+        session: AgentSession,
+        read_result,
+    ) -> tuple[float, float]:
         """
-        milestones = session.get_milestone_traces()
-        if not milestones:
-            return 1.0
+        LLM-as-a-Judge dual evaluation replacing keyword overlap heuristics.
 
-        # Use the read engine's own integrity score where available
-        base = getattr(read_result, "state_integrity_score", 1.0)
+        Evaluation 1 — Context Hydration Fidelity:
+            Judge compares hydrated payload against full ground truth trace.
+            Measures fraction of critical milestones preserved. → retrieval_accuracy_score
 
-        # If the read result has a claude_response, check how many milestone
-        # content fragments appear verbatim (first 40 chars as fingerprint)
-        response_text = getattr(read_result, "claude_response", "").lower()
-        if response_text:
-            hits = sum(
-                1 for t in milestones
-                if t.content[:40].lower() in response_text
-                or any(w in response_text for w in t.content.lower().split()[:8])
+        Evaluation 2 — Handoff State Continuity:
+            Judge checks receiving agent response for contradiction / state loss.
+            Rubric 1–5 normalized to [0, 1]. → state_integrity_score
+
+        Returns (retrieval_accuracy_score, state_integrity_score).
+        Falls back to (1.0, 1.0) if judge inputs unavailable.
+        """
+        ground_truth = session.get_messages()
+        hydrated_text = getattr(read_result, "hydrated_payload_text", "")
+        receiving_response = getattr(read_result, "claude_response", "")
+
+        if not hydrated_text or not receiving_response:
+            return 1.0, getattr(read_result, "state_integrity_score", 1.0)
+
+        try:
+            judge_out = self.judge.evaluate(
+                ground_truth_messages=ground_truth,
+                hydrated_payload_text=hydrated_text,
+                receiving_response=receiving_response,
             )
-            return round(hits / len(milestones), 4)
-
-        return base
+            return (
+                judge_out["retrieval_accuracy_score"],
+                judge_out["state_integrity_score"],
+            )
+        except Exception as exc:
+            logger.warning("Judge evaluation failed: %s", exc)
+            return 1.0, getattr(read_result, "state_integrity_score", 1.0)
 
     def run_single(
         self,
@@ -302,7 +326,7 @@ class HandoffRunner:
         hnd_in  = getattr(read_result, "context_token_count", 0)
         hnd_out = getattr(read_result, "handoff_output_tokens", 0)
 
-        retrieval_acc = self._retrieval_accuracy(session, read_result)
+        retrieval_acc, integrity_score = self._run_judge(session, read_result)
 
         extra = {}
         if hasattr(write_result, "flush_ratio"):
@@ -347,7 +371,7 @@ class HandoffRunner:
             simulated_wan_latency_ms=wan_rtt_ms,
             wan_simulation_active=wan_active,
             retrieval_accuracy_score=retrieval_acc,
-            state_integrity_score=getattr(read_result, "state_integrity_score", 1.0),
+            state_integrity_score=integrity_score,
             extra=json.dumps(extra),
         )
 

@@ -43,6 +43,7 @@ class R3ReadResult:
     state_integrity_score: float
     top_k_retrieved: int
     claude_response: str
+    hydrated_payload_text: str = ""  # text sent to receiving region (for LLM judge)
 
 
 class SemanticRAGReader:
@@ -128,6 +129,9 @@ class SemanticRAGReader:
         token_delta = full_tokens - resume_tokens
         integrity = self._integrity_score(session, retrieved)
 
+        hydrated_text = "\n\n".join(
+            f"[{m['role'].upper()}]: {m['content']}" for m in resume_messages
+        )
         return R3ReadResult(
             session_id=session.session_id,
             algorithm="R3_SemanticRAG",
@@ -142,4 +146,5 @@ class SemanticRAGReader:
             state_integrity_score=integrity,
             top_k_retrieved=len(retrieved),
             claude_response=result["content"],
+            hydrated_payload_text=hydrated_text,
         )

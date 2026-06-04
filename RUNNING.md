@@ -29,6 +29,165 @@ LLM agent experiment framework.
 
 ---
 
+## 0. How It Works — Input Data & Data Flow
+
+### What does the end user actually need to provide?
+
+**One thing: your `ANTHROPIC_API_KEY`.**
+
+You do not write any prompts. You do not prepare any dataset. The framework
+generates all conversation data automatically using Claude itself.
+
+Here is what happens under the hood when you run an experiment:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        WHAT YOU PROVIDE                             │
+│                                                                     │
+│   export ANTHROPIC_API_KEY=sk-ant-...    (your API key)            │
+│   docker compose up -d                   (infrastructure)           │
+│   python -m experiments.run_experiment_a (one command to run)       │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   STEP 1 — GENERATE SYNTHETIC SESSION               │
+│                                                                     │
+│  AgentSimulator picks a random built-in scenario, e.g.:            │
+│  "Debug a distributed microservices outage affecting payments"      │
+│                                                                     │
+│  Then calls Claude 6 times to simulate a real conversation:         │
+│                                                                     │
+│  [user]      "I need your help: Debug a microservices outage..."   │
+│  [assistant] "Let's start by checking the service mesh logs..."    │
+│  [user]      "Can you elaborate on that?"                          │
+│  [assistant] "The key issue is likely a cascading timeout..."      │
+│  [user]      "What are the risks involved?"                        │
+│  [assistant] "Resolved: circuit breaker confirmed as root cause."  │
+│                    ↑ milestone (keyword "Resolved" detected)        │
+│                                                                     │
+│  Output: AgentSession with 6 TraceEntry objects                    │
+│  (each trace stores: content, role, timestamp, is_milestone flag)  │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+┌─────────────────────────┐ ┌───────────────────────────────────────┐
+│  STEP 2 — WRITE ENGINE  │ │  STEP 3 — READ ENGINE                 │
+│                         │ │                                       │
+│  W0 Naive (baseline):   │ │  R0 Full Dump (baseline):             │
+│  Every trace → Cassandra│ │  Sends all 6 turns to Claude          │
+│  synchronously          │ │                                       │
+│                         │ │  R1 Hydration Protocol:               │
+│  W1 Selective Flush:    │ │  Sends only milestones + 2 recent     │
+│  Redis first, flush     │ │  → ~70% fewer tokens                  │
+│  only on milestones     │ │                                       │
+│                         │ │  R2 LLM Summarization:                │
+│  W2 WAL + Async Batch:  │ │  Compresses history into summary,     │
+│  Redis WAL → Cassandra  │ │  sends summary only                   │
+│  in batches             │ │                                       │
+│                         │ │  R3 Semantic RAG:                     │
+│  W3 CRDT Merge:         │ │  Embeds query, retrieves top-5        │
+│  G-Set, merge on handoff│ │  relevant traces by cosine similarity │
+│                         │ │                                       │
+│  W4 Adaptive Pre-flush: │ │  R4 MemGPT Hierarchical:              │
+│  Predicts handoff,      │ │  Recent turns + archived summaries    │
+│  flushes proactively    │ │  of older turns                       │
+│                         │ │                                       │
+│  Measures:              │ │  Measures:                            │
+│  • write_latency_ms     │ │  • handoff_latency_ms                 │
+│  • flush_latency_ms     │ │  • context_token_count (real API)     │
+│  • total_bytes_written  │ │  • compression_ratio                  │
+│                         │ │  • estimated_cost_usd                 │
+│                         │ │  • state_integrity_score              │
+└─────────────┬───────────┘ └──────────────────┬────────────────────┘
+              └────────────┬────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   STEP 4 — RECORD ONE ROW                           │
+│                                                                     │
+│  iteration=42, condition=C1_W1_Selective, write_algorithm=W1,       │
+│  read_algorithm=R0, write_latency_ms=1.23, flush_latency_ms=18.4,  │
+│  handoff_latency_ms=312.7, context_token_count=387,                 │
+│  compression_ratio=1.0, estimated_cost_usd=0.000412, ...           │
+│                                                                     │
+│  Repeat N times (default 100) per algorithm                        │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   STEP 5 — STATISTICAL OUTPUT                       │
+│                                                                     │
+│  experiment_a_raw.csv    ← every iteration, every algorithm         │
+│  experiment_a_summary.csv← p50 / p95 / p99 / mean per algorithm    │
+│  wilcoxon_*.csv          ← p-values vs baseline (is it significant?)│
+│                                                                     │
+│  analysis.ipynb          ← load CSVs → generate paper figures      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Claude is called TWICE per iteration
+
+```
+Iteration N
+│
+├─── Call 1 (AgentSimulator): Generate a 6-turn conversation
+│    Model : claude-haiku-4-5
+│    Purpose: Produce realistic traces that mimic a real agent session
+│    Cost  : ~$0.0002 per session
+│
+└─── Call 2 (ReadEngine): Simulate Region B resuming the conversation
+     Model : claude-haiku-4-5
+     Purpose: Measure how well each algorithm reconstructs context
+     Cost  : ~$0.0002–0.001 depending on algorithm (R0 is most expensive)
+```
+
+The key insight: **the second call is the actual experiment**. The read engine
+sends different amounts of context to Claude, and we measure real token counts
+and latency from the API response. The first call just generates the raw data
+that gets stored and later retrieved.
+
+---
+
+### Built-in Scenarios (no input needed)
+
+The simulator randomly picks from 8 pre-written business scenarios each iteration:
+
+| # | Scenario |
+|---|----------|
+| 1 | Analyze quarterly financial data and identify cost-reduction opportunities |
+| 2 | Debug a distributed microservices outage affecting payment processing |
+| 3 | Generate a product roadmap for the next two quarters |
+| 4 | Draft a technical specification for a new API endpoint |
+| 5 | Evaluate three competing cloud infrastructure proposals |
+| 6 | Summarize recent research papers on transformer architecture improvements |
+| 7 | Plan a phased database migration with zero-downtime requirements |
+| 8 | Review and fix security vulnerabilities in a Python web application |
+
+You can add your own scenarios by editing `src/agent_simulator.py` → `TASK_SCENARIOS`.
+
+---
+
+### End User Checklist
+
+```
+□ 1. Get an Anthropic API key from console.anthropic.com
+□ 2. Install Docker Desktop
+□ 3. Clone the repo and cd into multi-region-llm/
+□ 4. pip install -r requirements.txt
+□ 5. export ANTHROPIC_API_KEY=sk-ant-...
+□ 6. docker compose up -d  &&  python config/toxiproxy_setup.py
+□ 7. python -m experiments.run_experiment_a --iterations 10   ← quick test
+□ 8. Open analysis/analysis.ipynb to see figures
+```
+
+That is the complete end-user journey. No dataset preparation. No prompt writing.
+No manual labelling. The framework is self-contained.
+
+---
+
 ## 1. System Requirements
 
 | Requirement | Minimum | Recommended |

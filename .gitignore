@@ -2,8 +2,10 @@
 __pycache__/
 *.pyc
 *.pyo
-results/
-figures/
+results/**
+!results/RESULTS.md
+figures/**
+!figures/
 .DS_Store
 *.egg-info/
 dist/

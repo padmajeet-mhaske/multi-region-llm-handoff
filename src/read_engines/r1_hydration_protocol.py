@@ -29,6 +29,7 @@ class R1ReadResult:
     handoff_latency_ms: float
     context_payload_bytes: int
     context_token_count: int
+    handoff_output_tokens: int
     input_token_delta: int         # tokens saved vs baseline full dump
     compression_ratio: float
     estimated_cost_usd: float
@@ -118,6 +119,7 @@ class HydrationProtocolReader:
             handoff_latency_ms=handoff_latency_ms,
             context_payload_bytes=payload_bytes,
             context_token_count=result["input_tokens"],
+            handoff_output_tokens=result["output_tokens"],
             input_token_delta=token_delta,
             compression_ratio=compression_ratio,
             estimated_cost_usd=result["cost_usd"],

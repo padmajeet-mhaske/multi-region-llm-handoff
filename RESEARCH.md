@@ -83,7 +83,7 @@ dump. Every optimized algorithm must beat them on at least one metric to justify
 | **W0** | Baseline | Every trace synchronously written to Cassandra | Control group |
 | **W1** | Selective Flush | Traces stay in local Redis; flush to Cassandra only on milestone events OR when unflushed buffer exceeds 50 KB | Milestone-driven durability |
 | **W2** | WAL + Async Batch | Append to Redis list (WAL); background thread drains in batches of 10 to Cassandra | Async batching, pipeline throughput |
-| **W3** | CRDT Merge | Grow-only G-Set with vector clocks (Shapiro et al. 2011); region merge on handoff produces union | Conflict-free replication |
+| **W3** | Concurrent Trace Log G-Set | Each execution step is an immutable event in a local G-Set CRDT with region vector clock. On handoff/heal: `S_A ⊔ S_B` join semi-lattice merge. Simulates hot handoff overlap where Region B pre-writes last 2 traces concurrently. | Conflict-free replication under active-active concurrency |
 | **W4** | Adaptive Pre-flush | Sigmoid handoff probability predictor based on session age; proactively flushes when P(handoff) > 60% | Predictive durability |
 
 **W1 flush trigger logic:**
@@ -91,6 +91,23 @@ dump. Every optimized algorithm must beat them on at least one metric to justify
 if trace.is_milestone OR unflushed_bytes > 50_000:
     flush to Cassandra
 ```
+
+**W3 join semi-lattice merge:**
+```
+[Region A Trace Stream] ──► Local G-Set ──┐
+                                           ├──► S_A ⊔ S_B ──► Deterministic State
+[Region B Trace Stream] ──► Local G-Set ──┘   (vector clock causal order)
+
+merged.entries         = S_A.entries ∪ S_B.entries    (union by trace_id)
+merged.vector_clock[r] = max(vc_A[r], vc_B[r])        (component-wise max)
+```
+
+**W3 real-world scenarios that justify active-active design:**
+1. **Hot Handoff Overlap** — Region A finishes a background task while Region B already handles the next user prompt. Both write traces concurrently for a short window.
+2. **Split-Brain WAN Partition** — Network cut forces concurrent execution in both regions to maintain availability. On heal, CRDT merge produces a complete, conflict-free trace log.
+3. **Multi-Agent Swarm** — Sub-agents routed to different regions write to the same session concurrently. G-Set union guarantees zero lost traces.
+
+**Benchmark simulation:** Region B independently pre-writes the last `N_OVERLAP=2` traces (hot handoff overlap window) before merge — producing a non-trivial, measurable merge operation.
 
 **W4 sigmoid predictor:**
 ```
@@ -338,3 +355,34 @@ INFRASTRUCTURE LAYER
 | `lmcache2025` | LMCache: An Efficient KV Cache Layer for Enterprise-Scale LLM Inference | 2025 |
 | `codecrdt2025` | CodeCRDT: Observation-Driven Coordination for Multi-Agent LLM Code Generation | 2025 |
 | `shapiro2011crdt` | Conflict-Free Replicated Data Types (Shapiro et al.) | 2011 |
+
+---
+
+## 11. Reviewer Feedback Log
+
+Track pre-submission critique and responses here to prepare for rebuttal.
+
+---
+
+### Critique R-01 — W3 CRDT Justification (2026-06-04)
+
+**Criticism:** W3 (CRDT) is over-engineered for a single-user sequential session
+migration. CRDTs are designed for concurrent multi-master writes; applying them to
+a sequential handoff adds overhead without demonstrating the core benefit.
+
+**Response / Fix Applied:**
+- Reframed W3 as **"Concurrent Trace Log G-Set"** targeting three real active-active
+  scenarios: hot handoff overlap, split-brain WAN partition, multi-agent swarm.
+- Replaced trivial empty-remote merge with a **hot handoff overlap simulation**:
+  Region B pre-writes the last `N_OVERLAP=2` traces independently before the merge,
+  producing a non-trivial, measurable `S_A ⊔ S_B` operation.
+- Added `concurrent_writes` metric to `W3WriteResult` to quantify the overlap.
+- Added `causally_ordered_traces()` method returning causal (turn_index, timestamp)
+  ordering of the merged state — important for read engines consuming W3 output.
+- Updated paper narrative: W3 is positioned as the **partition-tolerant fallback** for
+  high-availability deployments, not a replacement for W1/W2 in simple handoff.
+
+**Files changed:** `src/write_engines/w3_crdt_merge.py`, `RESEARCH.md`
+
+**Paper section to update:** §4.1 (Write Engine Ablation) — add 2–3 sentences
+explaining the active-active framing before presenting W3 results.

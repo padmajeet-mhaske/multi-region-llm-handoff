@@ -1,0 +1,5 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+flush_latency_ms,C0_Baseline,C1_W1_Selective,3,0.0,1.0,False,-5.935921895976452,-0.001715875029617564
+flush_latency_ms,C0_Baseline,C1_W2_WAL,3,0.0,1.0,False,-1563.7359381955837,-0.45202337501848433
+flush_latency_ms,C0_Baseline,C1_W3_CRDT,3,0.0,1.0,False,-250.49745626615024,-0.07241037495475666
+flush_latency_ms,C0_Baseline,C1_W4_Adaptive,3,0.0,1.0,False,-33.50917986946637,-0.009686374923489893

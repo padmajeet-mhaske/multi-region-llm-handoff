@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+estimated_cost_usd,C0_Control,C1_Synergy,3,4.0,0.375,False,-0.12191997947206343,-1.600000000000039e-05
+estimated_cost_usd,C0_Control,C3_Tradeoff,3,0.0,1.0,False,-21.02357646021343,-0.0027590000000000006
+estimated_cost_usd,C0_Control,C4_Hybrid_W2_R1,3,6.0,0.125,False,2.3926795971391854,0.0003139999999999998

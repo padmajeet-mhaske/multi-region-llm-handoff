@@ -4,6 +4,8 @@ __pycache__/
 *.pyo
 results/**
 !results/RESULTS.md
+!results/run_002/
+!results/run_002/**
 figures/**
 !figures/
 .DS_Store

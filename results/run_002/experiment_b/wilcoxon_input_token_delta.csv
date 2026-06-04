@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+input_token_delta,C0_Baseline,C2_R1_Hydration,3,0.0,1.0,False,-536999999999.99994,-537.0
+input_token_delta,C0_Baseline,C2_R2_Summary,3,0.0,1.0,False,-622000000000.0,-622.0
+input_token_delta,C0_Baseline,C2_R4_MemGPT,3,0.0,1.0,False,-245999999999.99997,-246.0

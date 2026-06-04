@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+context_token_count,C0_Control,C1_Synergy,3,6.0,0.125,False,12.573012572650374,429.0
+context_token_count,C0_Control,C3_Tradeoff,3,6.0,0.125,False,18.288018287491454,624.0
+context_token_count,C0_Control,C4_Hybrid_W2_R1,3,6.0,0.125,False,14.946938023430516,510.0

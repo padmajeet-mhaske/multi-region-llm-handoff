@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+state_integrity_score,C0_Control,C1_Synergy,3,0.0,1.0,False,0.0,0.0
+state_integrity_score,C0_Control,C3_Tradeoff,3,0.0,1.0,False,0.0,0.0
+state_integrity_score,C0_Control,C4_Hybrid_W2_R1,3,0.0,1.0,False,0.0,0.0

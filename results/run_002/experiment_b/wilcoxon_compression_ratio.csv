@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+compression_ratio,C0_Baseline,C2_R1_Hydration,3,0.0,1.0,False,-1012471131.6397227,-1.0124711316397228
+compression_ratio,C0_Baseline,C2_R2_Summary,3,0.0,1.0,False,-2526459854.0145984,-2.5264598540145986
+compression_ratio,C0_Baseline,C2_R4_MemGPT,3,0.0,1.0,False,-427691043.5497123,-0.4276910435497123

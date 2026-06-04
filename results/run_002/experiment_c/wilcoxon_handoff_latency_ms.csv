@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+handoff_latency_ms,C0_Control,C1_Synergy,3,0.0,1.0,False,-3.442012740894035,-863.195338000196
+handoff_latency_ms,C0_Control,C3_Tradeoff,3,1.0,0.875,False,-2.4391580875802643,-611.6972970000916
+handoff_latency_ms,C0_Control,C4_Hybrid_W2_R1,3,3.0,0.625,False,-0.5407586454925191,-135.61261300014849

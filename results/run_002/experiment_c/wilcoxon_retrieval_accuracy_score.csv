@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+retrieval_accuracy_score,C0_Control,C1_Synergy,3,6.0,0.125,False,650000000.0,0.65
+retrieval_accuracy_score,C0_Control,C3_Tradeoff,3,6.0,0.125,False,349999999.99999994,0.35
+retrieval_accuracy_score,C0_Control,C4_Hybrid_W2_R1,3,6.0,0.125,False,650000000.0,0.65

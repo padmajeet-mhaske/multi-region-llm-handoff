@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+context_token_count,C0_Baseline,C2_R1_Hydration,3,6.0,0.125,False,4.843532762771179,455.0
+context_token_count,C0_Baseline,C2_R2_Summary,3,6.0,0.125,False,7.547395008362123,709.0
+context_token_count,C0_Baseline,C2_R4_MemGPT,3,6.0,0.125,False,3.0870868158321803,290.0

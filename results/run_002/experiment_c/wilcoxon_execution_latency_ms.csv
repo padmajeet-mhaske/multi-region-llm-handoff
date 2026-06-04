@@ -1,0 +1,4 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+execution_latency_ms,C0_Control,C1_Synergy,3,1.0,0.875,False,-2.438037160846965,-212.2469999999994
+execution_latency_ms,C0_Control,C3_Tradeoff,3,1.0,0.875,False,-41.106324031923336,-3578.5730000000003
+execution_latency_ms,C0_Control,C4_Hybrid_W2_R1,3,6.0,0.125,False,22.61950381494598,1969.175000000001

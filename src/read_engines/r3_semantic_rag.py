@@ -88,9 +88,28 @@ class SemanticRAGReader:
         retrieved_ids = {t.trace_id for t in retrieved}
         return len(milestones & retrieved_ids) / len(milestones)
 
-    def read_session(self, session: AgentSession) -> R3ReadResult:
+    def read_session(
+        self,
+        session: AgentSession,
+        available_trace_ids: set | None = None,
+    ) -> R3ReadResult:
+        """
+        Parameters
+        ----------
+        available_trace_ids : set[str] | None
+            When provided, restricts the embedding corpus to only these trace IDs.
+            Used to simulate cross-region storage gaps (e.g., W1 Selective Flush
+            only persisted milestone-triggered traces to Cassandra before handoff,
+            leaving non-milestone traces inaccessible in Region A's local Redis).
+            None = use all traces (default, same as before).
+        """
         query = "What is the current task, latest decision, and next action?"
-        traces = session.traces
+        if available_trace_ids is not None:
+            traces = [t for t in session.traces if t.trace_id in available_trace_ids]
+            if not traces:
+                traces = session.traces  # fallback: no filter if set is empty
+        else:
+            traces = session.traces
 
         retrieved, retrieval_latency_ms = self._retrieve(query, traces)
 

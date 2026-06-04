@@ -28,6 +28,11 @@ class W1WriteResult:
     flush_latency_ms: float        # avg per-flush global write
     total_bytes_written: int
     flush_ratio: float             # flushes / total writes
+    # Traces flushed at natural trigger points (milestone or 50KB overflow).
+    # Excludes the end-of-session catchup flush. This set represents what
+    # Region B can access in Cassandra at handoff time — used to simulate
+    # W1+R3 toxic interference where R3's semantic index is sparse.
+    naturally_flushed_trace_ids: frozenset = frozenset()
 
 
 class SelectiveFlushWriter:
@@ -73,6 +78,10 @@ class SelectiveFlushWriter:
         unflushed_buffer: list[TraceEntry] = []
         unflushed_bytes = 0
         global_flushes = 0
+        # Traces flushed at natural trigger points only (milestone / overflow).
+        # The end-of-session catchup is NOT included — it represents what
+        # Region B sees in Cassandra if a handoff fires mid-session.
+        naturally_flushed: list[str] = []
 
         for trace in session.traces:
             # Always write to local Redis first
@@ -81,16 +90,17 @@ class SelectiveFlushWriter:
             unflushed_buffer.append(trace)
             unflushed_bytes += trace.bytes_size
 
-            # Selective flush conditions
+            # Selective flush conditions: milestone trigger or 50KB overflow
             should_flush = trace.is_milestone or unflushed_bytes >= self.threshold
             if should_flush and unflushed_buffer:
                 flush_lat = self._flush_to_global(session.session_id, unflushed_buffer)
                 flush_latencies.append(flush_lat)
                 global_flushes += 1
+                naturally_flushed.extend(t.trace_id for t in unflushed_buffer)
                 unflushed_buffer = []
                 unflushed_bytes = 0
 
-        # Flush any remaining traces at session end
+        # End-of-session catchup flush (not counted in naturally_flushed)
         if unflushed_buffer:
             flush_lat = self._flush_to_global(session.session_id, unflushed_buffer)
             flush_latencies.append(flush_lat)
@@ -105,4 +115,5 @@ class SelectiveFlushWriter:
             flush_latency_ms=sum(flush_latencies) / max(len(flush_latencies), 1),
             total_bytes_written=session.total_bytes,
             flush_ratio=global_flushes / max(len(session.traces), 1),
+            naturally_flushed_trace_ids=frozenset(naturally_flushed),
         )

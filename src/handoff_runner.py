@@ -302,6 +302,7 @@ class HandoffRunner:
         session: Optional[AgentSession] = None,
         step_sequence_number: int = 0,
         collector: Optional[MetricsCollector] = None,
+        interaction_class: str = "",
     ) -> IterationMetrics:
         t_step_start = time.perf_counter()
 
@@ -315,7 +316,21 @@ class HandoffRunner:
         reader = self.readers[read_algo]
 
         write_result = writer.write_session(session)
-        read_result = reader.read_session(session)
+
+        # Thread write-side trace availability into readers that support it.
+        # Critical for W1+R3 toxic interference: W1's naturally_flushed_trace_ids
+        # restricts R3's embedding corpus to what Region B can actually see in
+        # Cassandra at handoff time (non-flushed traces remain in Region A's Redis).
+        available_ids = getattr(write_result, "naturally_flushed_trace_ids", None)
+        if available_ids is not None and hasattr(reader, "read_session"):
+            import inspect
+            sig = inspect.signature(reader.read_session)
+            if "available_trace_ids" in sig.parameters:
+                read_result = reader.read_session(session, available_trace_ids=available_ids)
+            else:
+                read_result = reader.read_session(session)
+        else:
+            read_result = reader.read_session(session)
 
         execution_latency_ms = (time.perf_counter() - t_step_start) * 1000
 
@@ -341,6 +356,12 @@ class HandoffRunner:
             extra["retrieval_latency_ms"] = read_result.retrieval_latency_ms
         if hasattr(read_result, "archival_summaries_count"):
             extra["archival_summaries_count"] = read_result.archival_summaries_count
+        if interaction_class:
+            extra["interaction_class"] = interaction_class
+        if available_ids is not None:
+            extra["available_trace_ratio"] = round(
+                len(available_ids) / max(len(session.traces), 1), 4
+            )
 
         return IterationMetrics(
             step_sequence_number=step_sequence_number,
@@ -377,7 +398,7 @@ class HandoffRunner:
 
     def run_experiment(
         self,
-        pairs: list[tuple[str, str, str]],  # (condition, write_algo, read_algo)
+        pairs: list[tuple],  # (condition, write_algo, read_algo[, interaction_class])
         n_iterations: int = 100,
         collector: Optional[MetricsCollector] = None,
         verbose: bool = True,
@@ -388,14 +409,17 @@ class HandoffRunner:
         total = len(pairs) * n_iterations
         completed = 0
 
-        for condition, write_algo, read_algo in pairs:
-            logger.info("Starting %s: %s + %s", condition, write_algo, read_algo)
+        for entry in pairs:
+            condition, write_algo, read_algo = entry[0], entry[1], entry[2]
+            interaction_class = entry[3] if len(entry) > 3 else ""
+            logger.info("Starting %s: %s + %s [%s]", condition, write_algo, read_algo, interaction_class)
             for i in range(n_iterations):
                 try:
                     step = collector.next_step()
                     metrics = self.run_single(
                         i, condition, write_algo, read_algo,
                         step_sequence_number=step, collector=collector,
+                        interaction_class=interaction_class,
                     )
                     collector.record(metrics)
                     completed += 1

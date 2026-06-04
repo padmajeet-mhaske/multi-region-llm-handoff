@@ -44,8 +44,8 @@ Current infrastructure treats handoff as an afterthought:
 > *"When the optimal write strategy and optimal read strategy are combined, do the efficiency
 > gains compound additively, or does interference between the two sides diminish the benefit?"*
 
-- **Maps to:** Experiment C (C0 vs C1 vs C2 vs C3 Hybrid)
-- **Key metrics:** `execution_latency_ms`, `estimated_cost_usd`, `state_integrity_score`, Wilcoxon p-value
+- **Maps to:** Experiment C (compatibility matrix: C0 control, C1 synergy, C2 toxic, C3 tradeoff, C4 hybrid)
+- **Key metrics:** `execution_latency_ms`, `estimated_cost_usd`, `state_integrity_score`, `retrieval_accuracy_score`, Wilcoxon p-value
 
 ---
 
@@ -439,3 +439,42 @@ matching for continuity — no API calls, full pipeline still testable.
 
 **Paper section to update:** §3.2 (Evaluation Metrics) — replace heuristic descriptions
 with LLM judge prompts and rubric. Add footnote on judge model independence.
+
+---
+
+### Critique R-03 — Experiment C Must Map Full Compatibility Surface (2026-06-04)
+
+**Criticism:** Simply testing "best write + best read" is insufficient. Reviewers want the
+full write × read compatibility surface, specifically highlighting synergies and toxic
+interference. A W1+R3 pairing induces catastrophic state collapse that a naive "best of both"
+selection process would miss entirely.
+
+**Response / Fix Applied:**
+
+Redesigned Experiment C as a fixed 5-condition compatibility matrix:
+
+| ID | Write | Read | Classification | Structural Reason |
+|----|-------|------|---------------|------------------|
+| C0 | W0 | R0 | Baseline | Control — naive sync + full dump |
+| C1 | W2 | R1 | Highly Synergistic | WAL async decouples WAN write path; R1 reads milestone markers quickly |
+| C2 | W1 | R3 | Catastrophic Interference | W1 drops non-milestone traces from Cassandra; R3's embedding corpus is sparse |
+| C3 | W4 | R2 | High Risk / High Reward | Adaptive preflush variability + summarization drift |
+| C4 | best | best | Empirical Hybrid | User's top performers from Experiments A and B |
+
+**Toxic interference (C2) measured realistically:**
+- `W1WriteResult.naturally_flushed_trace_ids` tracks trace IDs flushed at milestone/overflow triggers (not end-of-session catchup)
+- `R3.read_session(available_trace_ids=...)` restricts embedding corpus to cross-region-available traces
+- `HandoffRunner.run_single()` passes `naturally_flushed_trace_ids` → R3 automatically when present
+
+**Paper narrative auto-generated** from actual measured values:
+```
+"C2 pairing induces integrity drop to {toxic_integrity:.2f} (vs baseline {baseline:.2f}).
+ C1 achieves {synergy_integrity:.0%} integrity at {synergy_latency:.0f}ms handoff latency."
+```
+
+**Files changed:** `experiments/run_experiment_c.py` (full rewrite), `src/write_engines/w1_selective_flush.py`
+(add `naturally_flushed_trace_ids`), `src/read_engines/r3_semantic_rag.py` (add `available_trace_ids`
+param), `src/handoff_runner.py` (thread `available_trace_ids` + `interaction_class` through `run_single`)
+
+**Paper section to update:** §4.3 (Experiment C) — replace simple hybrid table with compatibility
+matrix table. Add paragraph on architectural co-design thesis using auto-generated numbers.

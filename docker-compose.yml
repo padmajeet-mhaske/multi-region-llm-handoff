@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+  redis-a:
+    image: redis:7-alpine
+    container_name: redis-region-a
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+    networks:
+      - llm-net
+
+  redis-b:
+    image: redis:7-alpine
+    container_name: redis-region-b
+    ports:
+      - "6380:6379"
+    command: redis-server --save "" --appendonly no
+    networks:
+      - llm-net
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra-global
+    ports:
+      - "9042:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=llm-cluster
+      - CASSANDRA_DC=dc1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks:
+      - llm-net
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.7.0
+    container_name: toxiproxy
+    ports:
+      - "8474:8474"
+      - "16379:16379"
+      - "16380:16380"
+    networks:
+      - llm-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - llm-net
+
+networks:
+  llm-net:
+    driver: bridge

@@ -71,6 +71,8 @@ class AgentSession:
     scenario: str
     traces: list[TraceEntry] = field(default_factory=list)
     total_bytes: int = 0
+    total_input_tokens: int = 0   # cumulative input tokens across all simulator API calls
+    total_output_tokens: int = 0  # cumulative output tokens across all simulator API calls
 
     def add_trace(self, entry: TraceEntry):
         self.traces.append(entry)
@@ -133,6 +135,8 @@ class AgentSimulator:
                 max_tokens=256,
                 use_cache=True,
             )
+            session.total_input_tokens  += result["input_tokens"]
+            session.total_output_tokens += result["output_tokens"]
             assistant_content = result["content"].strip()
             conversation.append({"role": "assistant", "content": assistant_content})
 

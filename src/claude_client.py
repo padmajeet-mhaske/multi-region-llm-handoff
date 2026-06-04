@@ -1,8 +1,52 @@
-"""Claude API wrapper — reads ANTHROPIC_API_KEY from environment only."""
+"""Claude API wrapper — reads ANTHROPIC_API_KEY from environment only.
+
+Set MOCK_CLAUDE=1 to run without an API key (uses synthetic responses).
+Real token counts are approximated from word count in mock mode.
+"""
 import os
+import random
+import time
 import anthropic
 
 _client: anthropic.Anthropic | None = None
+
+_MOCK_RESPONSES = [
+    "I've analyzed the situation and identified three key areas for improvement. First, we should address the latency issues in the service mesh. Second, the database query patterns need optimization. Third, the caching layer requires a configuration update.",
+    "Based on the data provided, the root cause appears to be a cascading timeout in the payment processing pipeline. I recommend implementing circuit breakers at each service boundary.",
+    "The proposed solution looks viable. Key risks include data migration complexity and potential downtime. I suggest a phased rollout with rollback procedures at each stage.",
+    "After reviewing the security vulnerabilities, the most critical issues are SQL injection in the user authentication module and insufficient input validation in the API endpoints.",
+    "The quarterly analysis shows a 23% increase in infrastructure costs. Primary drivers are compute over-provisioning and unused reserved instances. Immediate savings of ~$40K/month are achievable.",
+    "I've drafted the technical specification. The new API endpoint will support pagination, rate limiting, and JWT authentication. Estimated implementation time is 3 sprints.",
+    "Comparing the three cloud proposals: Option A offers best cost at scale, Option B has superior SLA guarantees, Option C provides the fastest migration path. Recommend Option A for long-term value.",
+    "The database migration plan is ready. Using a blue-green deployment strategy with read replicas to ensure zero downtime. Estimated migration window: 4 hours on a weekend.",
+]
+
+
+def _mock_call_claude(messages: list[dict], model: str, max_tokens: int) -> dict:
+    """Return a synthetic response without calling the API."""
+    # Approximate input tokens from total message character count
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    input_tokens = max(10, total_chars // 4)
+
+    content = random.choice(_MOCK_RESPONSES)
+    output_tokens = len(content.split()) * 4 // 3
+
+    prices = PRICING.get(model, {"input": 1.00, "output": 5.00})
+    cost_usd = (input_tokens * prices["input"] + output_tokens * prices["output"]) / 1_000_000
+
+    return {
+        "content": content,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "cost_usd": round(cost_usd, 8),
+        "model": model,
+    }
+
+
+def _is_mock() -> bool:
+    return os.environ.get("MOCK_CLAUDE", "").strip() == "1"
 
 HAIKU_MODEL = "claude-haiku-4-5"
 SONNET_MODEL = "claude-sonnet-4-6"
@@ -35,6 +79,9 @@ def call_claude(
     use_cache: bool = True,
 ) -> dict:
     """Send a request to Claude and return content + usage stats."""
+    if _is_mock():
+        return _mock_call_claude(messages, model, max_tokens)
+
     client = get_client()
 
     system_blocks = []
@@ -79,6 +126,10 @@ def call_claude(
 
 def count_tokens(messages: list[dict], system: str = "", model: str = HAIKU_MODEL) -> int:
     """Use the token counting endpoint before sending to avoid surprises."""
+    if _is_mock():
+        total_chars = sum(len(m.get("content", "")) for m in messages) + len(system)
+        return max(10, total_chars // 4)
+
     client = get_client()
     kwargs: dict = {"model": model, "messages": messages}
     if system:

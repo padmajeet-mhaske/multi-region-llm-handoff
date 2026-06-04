@@ -13,9 +13,12 @@ import logging
 from dataclasses import asdict
 from typing import Optional
 
+import os
 import redis
-from cassandra.cluster import Cluster
-from cassandra.policies import DCAwareRoundRobinPolicy
+
+if os.environ.get("CASSANDRA_STUB", "").strip() != "1":
+    from cassandra.cluster import Cluster
+    from cassandra.policies import DCAwareRoundRobinPolicy
 
 from src.agent_simulator import AgentSimulator, AgentSession
 from src.metrics_collector import MetricsCollector, IterationMetrics
@@ -158,6 +161,12 @@ def connect_redis(host: str = "localhost", port: int = 6379) -> redis.Redis:
 
 
 def connect_cassandra(host: str = "localhost", port: int = 9042):
+    import os
+    if os.environ.get("CASSANDRA_STUB", "").strip() == "1":
+        from src.cassandra_stub import get_stub_session
+        print("  [stub] Using in-memory Cassandra stub (CASSANDRA_STUB=1)")
+        return get_stub_session()
+
     cluster = Cluster(
         [host],
         port=port,

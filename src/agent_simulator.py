@@ -133,7 +133,7 @@ class AgentSimulator:
                 max_tokens=256,
                 use_cache=True,
             )
-            assistant_content = result["content"]
+            assistant_content = result["content"].strip()
             conversation.append({"role": "assistant", "content": assistant_content})
 
             assistant_trace = TraceEntry(

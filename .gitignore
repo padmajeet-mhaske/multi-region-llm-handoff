@@ -6,6 +6,8 @@ results/**
 !results/RESULTS.md
 !results/run_002/
 !results/run_002/**
+!results/run_003/
+!results/run_003/**
 figures/**
 !figures/
 .DS_Store

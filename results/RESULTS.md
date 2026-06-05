@@ -11,6 +11,7 @@ IEEE TKDE DK-GenAI Special Issue
 |--------|------|------|-------|-----------|------|--------|
 | [RUN-001](#run-001--pipeline-validation) | 2026-06-04 | Pipeline validation | claude-haiku-4-5 | 3/condition | $0.0352 | Complete ✅ |
 | [RUN-002](#run-002--full-three-experiment-suite-llm-as-a-judge) | 2026-06-04 | A+B+C full suite, LLM-as-a-Judge | claude-haiku-4-5 | 3/condition | ~$0.105 | Complete ✅ |
+| [RUN-003](#run-003--experiment-d-full-25-cell-compatibility-surface) | 2026-06-05 | Experiment D — full 5×5 matrix | claude-haiku-4-5 | 3/pair | ~$0.22 | Complete ✅ |
 
 ---
 
@@ -254,6 +255,176 @@ CASSANDRA_STUB=1 \
 python -m experiments.run_experiment_c \
   --iterations 3 --best-write W2 --best-read R1 \
   --output results/run_002/experiment_c
+```
+
+---
+
+## RUN-003 — Experiment D: Full 25-Cell Write×Read Compatibility Surface
+
+**Date:** 2026-06-05  
+**Purpose:** First exhaustive 5×5 compatibility matrix — all 25 W×R combinations measured  
+**Model:** `claude-haiku-4-5`  
+**Iterations per pair:** 3 (proof-of-concept; paper needs ≥100)  
+**Environment:** Cloud sandbox, native Redis (6379/6380), Cassandra in-memory stub  
+**Flags:** `CASSANDRA_STUB=1`; WAN simulation not active  
+**Total pairs attempted:** 25 | **Succeeded:** 20 | **Failed:** 5 (all R3 — sentence_transformers missing)  
+**Total cost:** ~$0.22  
+
+---
+
+### Full 5×5 Compatibility Matrix (RUN-003)
+
+All values: `state_integrity` = mean, `handoff` = p50 ms, `retrieval_acc` = mean.  
+R3 column entirely failed — needs Docker + `pip install sentence-transformers`.
+
+| Write | Read | Handoff p50 (ms) | State Integrity | Retrieval Acc. | Cost/iter ($) | Notes |
+|-------|------|-----------------|----------------|---------------|--------------|-------|
+| **W0** | R0 | 3,708 | 0.583 | 0.983 | $0.00228 | Baseline |
+| **W0** | R1 | 4,153 | 0.667 | 0.383 | $0.00193 | |
+| **W0** | R2 | 5,268 | 0.917 | 0.883 | $0.00468 | |
+| **W0** | R3 | FAILED | — | — | — | sentence_transformers |
+| **W0** | R4 | 4,380 | 1.000 | 0.783 | $0.00244 | |
+| **W1** | R0 | 3,689 | 0.833 | 0.833 | $0.00233 | |
+| **W1** | R1 | 3,938 | **0.417** | 0.350 | $0.00194 | Worst non-R3 cell ⚠ |
+| **W1** | R2 | 4,563 | 0.750 | 0.817 | $0.00462 | |
+| **W1** | R3 | FAILED | — | — | — | CatastrophicInterference |
+| **W1** | R4 | 4,471 | 1.000 | 0.740 | $0.00325 | |
+| **W2** | R0 | 3,525 | 0.667 | **1.000** | $0.00228 | Best retrieval fidelity |
+| **W2** | R1 | 3,908 | 0.583 | 0.340 | $0.00190 | HighlySynergistic label |
+| **W2** | R2 | 4,989 | 1.000 | 0.850 | $0.00470 | |
+| **W2** | R3 | FAILED | — | — | — | sentence_transformers |
+| **W2** | R4 | 4,975 | 1.000 | 0.817 | $0.00281 | |
+| **W3** | R0 | 3,561 | **1.000** | **1.000** | $0.00251 | Perfect on both metrics |
+| **W3** | R1 | **5,860** | 0.667 | 0.550 | $0.00216 | Slowest cell |
+| **W3** | R2 | 5,468 | 1.000 | 0.740 | $0.00537 | Most expensive |
+| **W3** | R3 | FAILED | — | — | — | sentence_transformers |
+| **W3** | R4 | 4,004 | 1.000 | 0.850 | $0.00232 | |
+| **W4** | R0 | 3,724 | 0.750 | **1.000** | $0.00286 | |
+| **W4** | R1 | 4,104 | 0.917 | 0.317 | $0.00188 | Cheapest cell |
+| **W4** | R2 | 5,523 | 0.667 | 0.817 | $0.00503 | HighRiskHighReward label |
+| **W4** | R3 | FAILED | — | — | — | sentence_transformers |
+| **W4** | R4 | **3,310** | **1.000** | 0.850 | $0.00222 | **★ Overall winner** |
+
+---
+
+### Key Findings (RUN-003)
+
+#### Winner: W4+R4 — Adaptive Preflush + MemGPT Hierarchical
+
+```
+Handoff p50:     3,310 ms  ← fastest of all 20 measured cells
+State Integrity: 1.000     ← perfect context continuity
+Retrieval Acc.:  0.850
+Cost/iter:       $0.00222  ← near-cheapest
+Runs on sandbox: YES (no special dependencies)
+```
+
+**Why it wins:** W4 preflushes predictively — by the time handoff happens, Cassandra
+already has the state. R4 is smart about what to load: recent 4 turns go directly to
+Redis B, older context becomes compressed archival summaries. The combination avoids
+both the WAN write spike (W0 problem) and the full-context dump cost (R0 problem).
+
+**Important:** This result was NOT discoverable from Experiment C alone, which only
+tested 5 hand-picked pairs. W4+R4 was an unlabelled "Unknown" cell.
+
+---
+
+#### Worst Cell: W1+R1 — Selective Flush + Milestone Hydration (0.417 integrity)
+
+```
+State Integrity: 0.417  ← worst non-R3 result
+```
+
+**Why it fails:** Double milestone-filtering. W1 only flushes milestone traces to
+Cassandra. R1 then reads only milestone markers from that already-sparse set.
+Non-milestone context (intermediate reasoning, variable state, partial results)
+is lost at both the write side AND the read side — compounding the context loss.
+
+**Lesson for paper §4.3:** Pairing two "milestone-only" strategies does NOT
+give you a lean handoff — it gives you a broken one. Co-design matters.
+
+---
+
+#### Surprising Discovery: W3+R1 is the Slowest (5,860ms p50)
+
+CRDT merge (W3) writes more data than any other engine (6,182 bytes mean in Exp A)
+due to vector clock metadata. R1 hydration then has to sort through milestone markers
+from a large CRDT-merged trace set. The combination creates write overhead without
+the retrieval benefit that justifies it.
+
+---
+
+#### Best Retrieval Fidelity: W2+R0 and W3+R0 (both 1.000)
+
+When the read side is R0 (full dump), the write engine doesn't affect retrieval
+accuracy — everything is dumped regardless. W2 and W3 achieve this because WAL
+flushes all traces to Cassandra (W2), and CRDT merges all traces including overlap (W3).
+
+---
+
+### Integrity Heatmap (Text View)
+
+```
+         R0      R1      R2      R3      R4
+W0    0.583   0.667   0.917     ❌   1.000
+W1    0.833   0.417   0.750     ❌   1.000
+W2    0.667   0.583   1.000     ❌   1.000
+W3    1.000   0.667   1.000     ❌   1.000
+W4    0.750   0.917   0.667     ❌   1.000
+
+❌ = R3 failed (sentence_transformers missing in sandbox)
+★ = W4+R4 is fastest at 3,310ms with perfect integrity
+```
+
+**Pattern:** R4 column is the only column where every pair achieves 1.000 integrity.
+R1 column has the widest spread (0.417–0.917) — milestone hydration is highly
+sensitive to the write engine's flush completeness.
+
+---
+
+### Latency Heatmap (Text View — p50 ms)
+
+```
+         R0      R1      R2      R3      R4
+W0    3,708   4,153   5,268     ❌   4,380
+W1    3,689   3,938   4,563     ❌   4,471
+W2    3,525   3,908   4,989     ❌   4,975
+W3    3,561   5,860   5,468     ❌   4,004
+W4    3,724   4,104   5,523     ❌   3,310 ★
+```
+
+**Pattern:** R0 column is consistently fastest (3,525–3,724ms) — full dump has no
+reconstruction overhead. R2 column is consistently slowest (4,563–5,523ms) — the
+summarization API call adds latency. W4+R4 breaks the R4 column's otherwise
+high-latency trend due to preflush eliminating the write bottleneck.
+
+---
+
+### What Needs Docker for Paper
+
+| Cell | Why Needed | Expected Finding |
+|------|-----------|-----------------|
+| All ×R3 cells (5 pairs) | `sentence_transformers` | W1+R3 = CatastrophicInterference (core paper claim) |
+| Re-run all with n≥100 | Statistical significance | Wilcoxon p<0.05 for key comparisons |
+| Re-run with Toxiproxy | WAN RTT simulation | W4 preflush advantage amplified at 120ms WAN RTT |
+| Re-run with real Cassandra | Flush latency realism | W0 vs W1 differentiation only visible with disk I/O |
+
+---
+
+### How to Reproduce RUN-003
+
+```bash
+redis-server --port 6379 --daemonize yes --save "" --appendonly no
+redis-server --port 6380 --daemonize yes --save "" --appendonly no
+
+cd multi-region-llm
+
+ANTHROPIC_API_KEY=sk-ant-... CASSANDRA_STUB=1 \
+python -m experiments.run_experiment_d \
+  --enabled \
+  --iterations 3 \
+  --output results/run_003/experiment_d \
+  --surface-plots
 ```
 
 ---

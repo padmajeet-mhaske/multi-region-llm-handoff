@@ -168,7 +168,7 @@ All metrics map directly to paper figures:
 
 ## 6. Real-World Motivation
 
-### Where this matters
+### 6.1 Where This Matters (Summary)
 
 | Industry | Scenario | Metric that matters most |
 |----------|----------|--------------------------|
@@ -179,10 +179,130 @@ All metrics map directly to paper figures:
 | **Gaming / Consumer** | Companion AI, user moves continent | `handoff_latency_ms` |
 | **Autonomous Agents** | Multi-day research/coding agent | `compression_ratio` |
 
-### Real-world incidents validating the problem
-- **Anthropic** (April 2024): 51-minute outage — all stateful agent sessions lost
-- **OpenAI** (November 2024): 2+ hour degradation
-- **Google Gemini** (February 2025): 38-minute rate-limit incident
+---
+
+### 6.2 Detailed Scenarios
+
+#### Scenario 1 — 24/7 Customer Support Agent (Follow-the-Sun)
+
+A bank deploys an AI support agent. A customer in Singapore starts a complex loan dispute
+at 11pm local time. The US East region handles it overnight. At 9am Singapore time, the
+agent hands back to APAC so a human supervisor can review with full context.
+
+```
+Singapore (APAC) → US-East (overnight) → Singapore (morning)
+   Redis APAC    →     Cassandra        →    Redis APAC
+```
+
+**Without this paper:** The US agent's Redis state is lost at shift handoff. The customer
+repeats everything. The supervisor sees a blank slate.
+
+**With W2+R1 (C1 Synergy):** WAL batches overnight writes asynchronously. Milestone hydration
+reconstructs key dispute milestones for the morning supervisor in milliseconds.
+
+**Primary metrics:** `state_integrity_score`, `handoff_latency_ms`
+
+---
+
+#### Scenario 2 — AI Coding Assistant: Region Failover Mid-Session
+
+A GitHub Copilot-style agent is helping a developer debug a complex distributed systems issue.
+Session is 2 hours long, 40+ turns deep. The US-West datacenter has a partial outage. Session
+must transfer to US-East mid-conversation.
+
+**Without this paper:** The US-East agent starts fresh, asks "what are you working on?" The
+developer loses two hours of context and trust.
+
+**With W4+R1 (Adaptive Preflush + Hydration):** W4 detects degrading health check signals,
+pre-flushes the session to Cassandra *before* the outage completes. US-East agent reconstructs
+in <500ms using R1 (milestone hydration — key decisions and error traces only).
+
+**Primary metrics:** `flush_latency_ms`, `retrieval_accuracy_score`
+
+---
+
+#### Scenario 3 — Medical AI Assistant: Regulatory Jurisdiction Routing
+
+A clinical documentation AI must process patient data only within the patient's home
+jurisdiction (GDPR). An EU patient travels to the US. Mid-session, the agent must migrate
+back to EU servers when the patient returns.
+
+**Critical constraint:** GDPR requires data residency. Raw conversation traces cannot live
+in US Cassandra. Only compliant EU Cassandra deployment can hold durable state.
+
+**With W1+R4 (Selective Flush + MemGPT Hierarchical):**
+- W1 flushes only milestone traces (diagnoses, medication decisions) to EU-compliant Cassandra
+- Non-milestone chit-chat stays in local Redis and is dropped at jurisdiction boundary
+- R4 reconstructs clinical summary without moving raw transcripts across jurisdictions
+- `naturally_flushed_trace_ids` ensures only GDPR-compliant traces cross the boundary
+
+**Primary metrics:** `total_bytes_written`, `retrieval_accuracy_score`, `state_integrity_score`
+
+---
+
+#### Scenario 4 — Multi-Agent Swarm: Region Specialization
+
+An autonomous research agent farms out subtasks to specialized agents in different regions:
+- **US-East:** literature search agent (near academic API servers)
+- **EU-West:** data analysis agent (near GDPR-compliant datasets)
+- **APAC:** summarization agent (near Asian-language model fine-tunes)
+
+Each agent runs its subtask in its local Redis. The orchestrator must merge all three
+context streams into a coherent result without trace conflicts.
+
+**This is exactly W3's use case (active-active):** Each region's agent writes to its own
+CRDT G-Set state. The orchestrator performs `S_A ⊔ S_B ⊔ S_C` join semi-lattice merge.
+Even if two agents finish at the same millisecond, CRDT guarantees deterministic, conflict-free
+merge with zero lost traces.
+
+**Primary metrics:** `concurrent_writes`, `state_integrity_score`, `write_latency_ms`
+
+---
+
+#### Scenario 5 — Real-Time AI Game Master: Low-Latency Handoff
+
+An AI game master for a multiplayer RPG runs per-player agents. A player moves between
+game servers (US→EU) during active gameplay. The agent must transfer mid-session with
+<200ms perceived latency — otherwise the game feel breaks.
+
+**This is RQ4 (WAN sensitivity):** Under Toxiproxy 120ms WAN simulation, C1 (W2+R1 Synergy)
+achieves lowest handoff latency because WAL had already pipelined writes during gameplay —
+the read side only hydrates 2–3 milestone markers (quest objectives, inventory state).
+The player barely notices the region switch.
+
+**Primary metrics:** `handoff_latency_ms`, `simulated_wan_latency_ms`, `context_token_count`
+
+---
+
+### 6.3 Common Structure Across All Scenarios
+
+Every scenario has the same shape:
+
+```
+Long-running AI session
+      +
+Must move between regions (compliance / failover / latency / follow-the-sun)
+      +
+Context is large and expensive to retransmit fully
+      =
+This paper's problem
+```
+
+**Why no prior work covers this:**
+- Single-region memory systems (MemGPT, ACON, A-MEM) assume the agent never moves
+- Infrastructure systems (SkyWalker, AIBrix) decide *which* region to route to, but don't
+  solve *what happens* to the session state when it gets there
+- **This paper is the bridge between those two bodies of work**
+
+---
+
+### 6.4 Real-World Incidents Validating the Problem
+
+| Date | Provider | Duration | Impact |
+|------|----------|----------|--------|
+| April 2024 | Anthropic | 51 min | All stateful agent sessions lost |
+| November 2024 | OpenAI | 2+ hours | Degraded context handling at scale |
+| February 2025 | Google Gemini | 38 min | Rate-limit incident, session drops |
 
 ---
 
@@ -478,3 +598,133 @@ param), `src/handoff_runner.py` (thread `available_trace_ids` + `interaction_cla
 
 **Paper section to update:** §4.3 (Experiment C) — replace simple hybrid table with compatibility
 matrix table. Add paragraph on architectural co-design thesis using auto-generated numbers.
+
+---
+
+## 12. Two-Tier Storage Architecture: Redis + Cassandra
+
+*Why the system uses two databases, how they relate, and where each algorithm fits.*
+
+---
+
+### 12.1 Fundamental Differences
+
+| Property | Redis | Cassandra |
+|----------|-------|-----------|
+| Storage medium | RAM (in-memory) | Disk (SSTable / LSM-tree) |
+| Latency | <1ms (local) | 1–10ms |
+| Durability | Volatile — lost on restart | Persistent — survives crashes |
+| Replication | Single-primary (or Cluster mode) | Multi-master — every region writes |
+| WAN-friendly | No — designed for single datacenter | Yes — built for geo-distributed deployments |
+| Use case | Hot cache, active session state | Long-term store, cross-region durable log |
+
+**Key insight:** Redis is fast *because* it lives close to the application in the same
+datacenter. Cassandra is durable *because* it replicates across regions asynchronously.
+Neither alone solves the handoff problem — the paper benchmarks the bridge between them.
+
+---
+
+### 12.2 The Two Crossover Points
+
+```
+REGION A                                    REGION B
+─────────────────────────                   ─────────────────────────
+Agent is running                            Agent waits to take over
+    │
+    │  Every LLM turn:
+    ▼
+[Redis A]  ◄── fast local writes            [Redis B]  ← empty at handoff start
+(in-memory, <1ms, volatile)                 (in-memory, must be filled
+                                             before agent starts)
+    │
+    │  CROSSOVER 1 — Write Engines W0–W4
+    │  How to move Region A's hot state
+    │  into durable cross-region storage
+    │  (crosses WAN — the expensive path)
+    ▼
+[Cassandra]  ◄──────────────────────────────────────────────────────
+(distributed, durable, all regions           Region B reads from here
+ can read/write, WAN-native)
+                                                 │
+                                                 │  CROSSOVER 2 — Read Engines R0–R4
+                                                 │  How to reconstruct context
+                                                 │  from Cassandra into new Redis
+                                                 │  (within-region — cheap)
+                                                 ▼
+                                             [Redis B]
+                                             (hot cache filled,
+                                              agent can start)
+```
+
+---
+
+### 12.3 Crossover 1 — Redis A → Cassandra (Write Engines, Experiment A)
+
+This is the expensive crossover. Every write crosses the WAN (100–200ms RTT between regions).
+
+```
+Agent turn completes → trace written to Redis A (fast, local, <1ms)
+                              │
+                    W0: flush EVERY trace immediately  → 1 WAN RTT per trace (worst)
+                    W1: flush only MILESTONE traces    → fewer WAN writes, rest stays in Redis A
+                    W2: batch + flush asynchronously   → pipeline the WAN, non-blocking
+                    W3: CRDT G-Set merge with Region B → handles concurrent writes from both sides
+                    W4: predict handoff time, preflush → pay WAN cost before it's urgent
+```
+
+**Core tension:** Redis A is the source of truth during the session. Cassandra is only
+needed at handoff boundaries. Paying WAN latency for every single LLM turn (W0 behavior)
+is expensive and unnecessary — the write engines answer the question of *when* and *what*
+to flush.
+
+---
+
+### 12.4 Crossover 2 — Cassandra → Redis B (Read Engines, Experiment B)
+
+This crossover is within-region — cheap network cost, but the question is *how much* to load
+and *in what form*.
+
+```
+Cassandra has all traces → what does Region B actually need to start?
+
+R0: load entire history → Redis B gets full dump → correct but expensive
+R1: load milestone markers only → lightweight, fast; loses non-milestone context
+R2: LLM summarizes everything first → compressed payload, some semantic drift
+R3: embed query, retrieve top-5 traces by cosine similarity → targeted, but needs all traces available
+R4: load last 4 turns hot + compress older turns into archival summaries → tiered, MemGPT-style
+```
+
+**Core tension:** Loading everything (R0) guarantees context fidelity but burns tokens and
+time. Compression (R1–R4) is cheaper but risks losing task-critical state — exactly what
+the LLM judge measures via `retrieval_accuracy_score` and `state_integrity_score`.
+
+---
+
+### 12.5 Why Cassandra Specifically
+
+Cassandra is designed for exactly this two-tier bridge pattern:
+
+- **Multi-master writes:** Both Region A and Region B can write without a central coordinator.
+  This is what makes W3 (CRDT merge) possible — no single-master bottleneck.
+- **Tunable consistency:** `QUORUM` for durability-critical milestone writes (W1), `ONE` for
+  fast WAL drain (W2). Trade consistency for speed per write type.
+- **Wide-column model:** Traces stored as `(session_id, turn_index)` primary key — efficient
+  range scans for "get all traces for session X" (R0/R4) and point lookups for milestone
+  filtering (R1).
+- **WAN-native replication:** Netflix, Apple, Discord run Cassandra across 3+ regions. The
+  replication topology your paper assumes (`SimpleStrategy, RF=1` in dev → `NetworkTopologyStrategy`
+  in production) is production-proven.
+
+**Redis alone cannot solve multi-region** because it has a single primary node — if Region A
+goes down mid-session, Region B has no durable state to recover from. Redis Cluster replication
+is eventually consistent *within* a region but not designed for active-active cross-region writes.
+
+---
+
+### 12.6 The Thesis Restated in One Sentence
+
+> Redis holds hot session state locally (fast + cheap); Cassandra is the durable cross-region
+> bridge; this paper measures which write strategy (how to get data *into* Cassandra) combined
+> with which read strategy (how to get data *out* of Cassandra into the new region's Redis)
+> minimizes handoff cost without losing agent state continuity — a combination no prior work
+> has benchmarked.

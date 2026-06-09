@@ -14,17 +14,58 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
 
 ## BLOCKER: Data Quality (must fix before stats-heavy sections)
 
-- [ ] **Rerun all experiments at n≥30/condition** (n=3 currently — Wilcoxon tests meaningless)
-  - Need new API key
-  - Need Docker: `docker compose up -d` (real Cassandra, real Redis)
-  - Remove `CASSANDRA_STUB=1` from run commands
-  - Target: `results/run_004/` with n=30, then `results/run_005/` with n=100 for final
-- [ ] **Fix R3 column (5 missing cells)** — all W×R3 pairs fail due to missing `sentence_transformers`
-  - `pip install sentence-transformers` inside Docker or venv
-  - R3 data is critical — W1+R3 CatastrophicInterference is the core paper claim
-- [ ] **Enable Toxiproxy WAN simulation** (RQ4 — WAN sensitivity)
-  - `python config/toxiproxy_setup.py` adds 120ms + jitter between Redis A → Cassandra
-  - Without this, latency numbers are localhost-only and not representative
+### Step 1 — Install Docker Desktop (your laptop, one-time)
+- [ ] Download and install Docker Desktop: https://docker.com/products/docker-desktop
+  - Works on Mac, Windows, Linux
+  - No AWS/GCP needed — everything runs locally in containers
+  - Gives us: real Cassandra + real Redis + Toxiproxy WAN simulation
+
+### Step 2 — Install sentence-transformers (one command, one-time)
+- [ ] `pip install sentence-transformers`
+  - Unlocks R3 column (5 missing cells) — needed for W1+R3 CatastrophicInterference finding
+  - Downloads all-MiniLM-L6-v2 model (~90 MB) automatically on first run
+  - No GPU needed — CPU inference is fine for our use case
+  - Without this: W1+R3 (core paper claim) has zero data points
+
+### Step 3 — Get a new Anthropic API key
+- [ ] Go to https://console.anthropic.com → API Keys → Create new key
+- [ ] Revoke both previous keys used in this project (see session summary)
+- [ ] Cost estimate for full paper-quality run:
+  - n=30/pair  → ~$2.25   (acceptable for validation run)
+  - n=100/pair → ~$7.50   (paper quality — recommended)
+
+### Step 4 — Run the full experiment together
+- [ ] Start containers: `docker compose up -d`
+- [ ] Enable WAN simulation: `python config/toxiproxy_setup.py`
+  - Adds 120ms + 10ms jitter between Redis A → Cassandra (realistic cross-region latency)
+- [ ] Run Experiment D (n=100):
+  ```bash
+  ANTHROPIC_API_KEY=<new_key> \
+  python -m experiments.run_experiment_d \
+    --enabled --iterations 100 \
+    --output results/run_004 \
+    --surface-plots
+  ```
+- [ ] Output goes to `results/run_004/` — will auto-generate 3D surface plots
+
+### Step 5 — Generate heatmaps (I will do this after Step 4)
+- [ ] Install seaborn: `pip install seaborn`
+- [ ] I will run `plot_heatmap()` against the new CSV — produces 4 publication PNGs:
+  - Fig. 2: State integrity heatmap (5×5)
+  - Fig. 3: Handoff latency heatmap (5×5)
+  - Fig. 6: Bar chart — Experiment A write ablation
+  - Fig. 7: Box plot — WAN latency sensitivity
+- [ ] All figures saved to `results/run_004/`
+
+### Step 6 — Fill in Results section (I will do this after Step 4)
+- [ ] Tables III–VI with real n=100 numbers (replacing n=3 prototype values)
+- [ ] Wilcoxon significance table with valid p-values
+- [ ] §VII Finding E: W1+R3 CatastrophicInterference — write with real measured values
+
+### Step 7 — Final paper touches (you provide, I format)
+- [ ] Author names, affiliations, ORCIDs → I will format into IEEE style
+- [ ] Funding acknowledgment text → I will insert into Acknowledgment section
+- [ ] Author headshots (1×1.25 in, 300 dpi) → submit separately with manuscript
 
 ---
 

@@ -75,19 +75,23 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
 
 ## Section IV — Algorithm Design
 
-- [ ] **Algorithm 1** — W0: Naive Synchronous Write (pseudocode block)
-- [ ] **Algorithm 2** — W1: Selective Flush (milestone-triggered)
-- [ ] **Algorithm 3** — W2: WAL + Async Batch
-- [ ] **Algorithm 4** — W3: CRDT G-Set Merge (include `S_A ⊔ S_B` join formula)
-- [ ] **Algorithm 5** — W4: Adaptive Pre-flush (include sigmoid predictor equation)
-- [ ] **Algorithm 6** — R0: Full Dump Hydration
-- [ ] **Algorithm 7** — R1: Selective Hydration (milestones + 2 recent)
-- [ ] **Algorithm 8** — R2: LLM Summarization Read
-- [ ] **Algorithm 9** — R3: Semantic RAG (all-MiniLM-L6-v2 embeddings)
-- [ ] **Algorithm 10** — R4: MemGPT Hierarchical Retrieval
-- [ ] Add equation: W4 sigmoid `p(flush) = 1 / (1 + e^(-k(t - t₀)))`
-- [ ] Add equation: W3 CRDT merge `S_merged = S_A ∪ S_B, vc_merged = max(vc_A, vc_B)`
-- [ ] Add equation: Compression ratio `CR = |context_tokens_Rx| / |context_tokens_R0|`
+- [x] **Algorithm 1** — W0: Naive Synchronous Write
+- [x] **Algorithm 2** — W1: Selective Flush (milestone-triggered)
+- [x] **Algorithm 3** — W2: WAL + Async Batch
+- [x] **Algorithm 4** — W3: CRDT G-Set Merge (with `S_A ⊔ S_B` join formula)
+- [x] **Algorithm 5** — W4: Adaptive Pre-flush (with sigmoid predictor)
+- [x] **Algorithm 6** — R0: Full Dump Hydration
+- [x] **Algorithm 7** — R1: Milestone Hydration
+- [x] **Algorithm 8** — R2: LLM Summarization Read
+- [x] **Algorithm 9** — R3: Semantic RAG (all-MiniLM-L6-v2 embeddings)
+- [x] **Algorithm 10** — R4: MemGPT Hierarchical Retrieval
+- [x] Eq. (3) — W4 sigmoid: `p(flush) = 1 / (1 + exp(-k(t - t₀)))`
+- [x] Eq. (2) — W3 CRDT: `S_merged = S_A ∪ S_B, vc_merged = max(vc_A, vc_B)`
+- [x] Eq. (5) — Compression ratio: `CR = T_R0 / T_Rx`
+- [x] Eq. (1) — State definition
+- [x] Eq. (4) — LLM-as-a-Judge scoring (integrity + retrieval)
+- [x] Eq. (6) — Per-iteration API cost
+  - → All in PAPER_DRAFT.md § SECTION III and § SECTION IV
 
 ---
 
@@ -137,21 +141,20 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
 
 ## Section VIII — Conclusion
 
-- [ ] Write 3-paragraph conclusion:
+- [x] Write 3-paragraph conclusion:
   - Para 1: What we did (5×5 surface, LLM-as-a-Judge evaluation)
   - Para 2: Key findings (W4+R4 winner, W1+R3 toxic, co-design principle)
   - Para 3: Future work (WAN sensitivity, >2 regions, other LLM families)
+  - → See PAPER_DRAFT.md § SECTION VIII
 
 ---
 
 ## Front Matter
 
-- [ ] **Title** — finalize: "Write-Read Co-Design for Cross-Region LLM Agent Session Handoff: An Exhaustive Compatibility Surface Analysis"
+- [~] **Title** — drafted: "Write-Read Co-Design for Cross-Region LLM Agent Session Handoff: An Exhaustive Compatibility Surface Analysis"
 - [ ] **Authors** — real names, affiliations, ORCIDs
-- [ ] **Abstract** — single paragraph, ~250 words, stand-alone (no citations, no equations)
-  - Must include: problem, approach, key finding (W4+R4, co-design principle), metric numbers
-- [ ] **Index Terms** — 5–6 from IEEE Thesaurus:
-  - Suggested: *distributed systems, large language models, session management, CRDT, context retrieval, multi-region replication*
+- [x] **Abstract** — written (~280 words, stand-alone) → See PAPER_DRAFT.md § ABSTRACT
+- [x] **Index Terms** — 6 keywords written → See PAPER_DRAFT.md § INDEX TERMS
 
 ---
 

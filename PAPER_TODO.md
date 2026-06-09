@@ -30,46 +30,38 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
 
 ## Section I — Introduction
 
-- [~] Problem statement exists in RESEARCH.md §1 — needs rewrite into IEEE prose style
-- [ ] Write opening "T HIS paper..." drop-cap paragraph
-- [ ] Add 2–3 forward references to figures ("as shown in Fig. 1")
-- [ ] State 4 research questions (RQ1–RQ4) formally in numbered list
-- [ ] Add 1-paragraph contributions summary ("The main contributions of this paper are:")
+- [x] Problem statement — rewritten into IEEE prose style
+- [x] Write opening "T HIS paper..." drop-cap paragraph
+- [x] Forward references to figures ("as shown in Fig. 1")
+- [x] State 4 research questions (RQ1–RQ4) formally in numbered list
+- [x] Add 5-point contributions summary
+  - → See PAPER_DRAFT.md § SECTION I
 
 ---
 
-## Section II — Related Work  ← BIGGEST GAP
+## Section II — Related Work
 
-- [ ] **Cluster A: Multi-region distributed storage**
-  - CRDTs (Shapiro et al. 2011 — original CRDT paper)
-  - Dynamo (DeCandia et al. 2007)
-  - Cassandra (Lakshman & Malik 2010)
-  - Spanner (Corbett et al. 2012)
-- [ ] **Cluster B: LLM agent memory / context management**
-  - MemGPT (Packer et al. 2023)
-  - Retrieval-Augmented Generation (Lewis et al. 2020)
-  - LongMem / context compression papers
-  - LLM session continuity / agent state papers
-- [ ] **Cluster C: LLM evaluation / LLM-as-a-Judge**
-  - G-Eval (Liu et al. 2023)
-  - MT-Bench / Chatbot Arena (Zheng et al. 2023)
-- [ ] **Cluster D: Cost-efficient inference**
-  - Token compression / prompt pruning
-  - KV cache offloading
-- [ ] Write ~800-word related work section in IEEE style with [1]–[N] citations
-- [ ] Confirm gap: "No prior work benchmarks write+read strategy *combination* for cross-region handoff"
+- [x] **Cluster A: Multi-region distributed storage** — [1]–[6]: Shapiro CRDTs ×2,
+      Dynamo, Cassandra, Spanner, CockroachDB
+- [x] **Cluster B: LLM agent memory / context management** — [7]–[11]: MemGPT, RAG,
+      Sentence-BERT, ReAct, LLMLingua
+- [x] **Cluster C: LLM evaluation / LLM-as-a-Judge** — [12]–[13]: G-Eval, MT-Bench
+- [x] **Cluster D: Cost-efficient inference** — [11], [14]: LLMLingua, PagedAttention
+- [x] Write ~900-word related work section in IEEE style with [1]–[14] citations
+- [x] Gap confirmed: "No prior work examines write+read strategy *interaction*
+      for cross-region LLM handoff"
+  - → See PAPER_DRAFT.md § SECTION II
 
 ---
 
 ## Section III — System Architecture
 
-- [~] Two-tier design described in RESEARCH.md §12
-- [ ] Draw **Fig. 1** — architecture diagram: Agent A → Redis A → Cassandra → Redis B → Agent B
-  - Label WAN crossover points (Crossover 1, Crossover 2)
-  - Label latency tiers (<1ms hot, 1–10ms warm, 120ms WAN)
-- [ ] Write formal section text (~600 words) from RESEARCH.md §12 content
-- [ ] Add formal definition of session state `S = {(role, content, ts, milestone_flag)}`
-- [ ] Add equation for state integrity score formula
+- [x] Two-tier design — written in full IEEE prose (~700 words)
+- [x] Fig. 1 — ASCII architecture diagram with crossover labels included in draft
+- [x] Formal session state definition referencing Eq. (1)
+- [x] Cassandra justification sub-section (§III-E)
+- [x] Both crossover points explained (§III-C, §III-D)
+  - → See PAPER_DRAFT.md § SECTION III
 
 ---
 
@@ -97,16 +89,14 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
 
 ## Section V — Experimental Methodology
 
-- [~] RQ1–RQ4 defined in RESEARCH.md §2 — needs IEEE prose rewrite
-- [~] Ablation rationale in RESEARCH.md §3 — good, needs light editing
-- [ ] Write **Table I** — Environment configuration (hardware, Redis version, Cassandra version, model)
-- [ ] Write **Table II** — Metrics definitions (all 9 metrics with formula and unit)
-- [ ] Write LLM-as-a-Judge methodology sub-section
-  - Fidelity prompt + Continuity prompt (can paste from code)
-  - Dual-score design rationale
-  - Inter-rater reliability note
-- [ ] Write cost estimation methodology (token counting, pricing model)
-- [ ] Add Docker compose setup as a reproducibility note
+- [x] RQ1–RQ4 — rewritten in IEEE prose with RQ numbering
+- [x] Ablation rationale — written (A/B/C/D structure explained)
+- [x] **Table I** — Environment configuration (all components, versions, parameters)
+- [x] **Table II** — All 10 metrics with formula, unit, and paper use
+- [x] LLM-as-a-Judge sub-section (fidelity + continuity, separation rationale)
+- [x] Statistical testing sub-section (Wilcoxon, Holm-Bonferroni, n≥100 note)
+- [x] Reproducibility note with minimal and full-Docker commands
+  - → See PAPER_DRAFT.md § SECTION V
 
 ---
 
@@ -129,13 +119,13 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
 
 ## Section VII — Discussion
 
-- [~] Key findings in RESEARCH.md §13 — ready but needs IEEE prose
-- [ ] Write Finding 1: W4+R4 is the Pareto-optimal pairing (fastest + perfect integrity)
-- [ ] Write Finding 2: W1+R1 double-milestone anti-pattern (integrity collapse to 0.417)
-- [ ] Write Finding 3: W1+R3 CatastrophicInterference (requires R3 data — blocked)
-- [ ] Write Finding 4: W3+R1 latency penalty (CRDT metadata × hydration overhead)
-- [ ] Write Finding 5: Co-design principle — "independently optimal algorithms are not jointly optimal"
-- [ ] Add threat to validity sub-section (sandbox stub, n=3 prototype runs, single model)
+- [x] Finding A: W4+R4 Pareto-optimal — mechanism explained (temporal decoupling)
+- [x] Finding B: W1+R1 double-filter anti-pattern (0.417 integrity) — mechanism explained
+- [x] Finding C: W3+R1 latency penalty — metadata amplification mechanism explained
+- [x] Finding D: Co-design principle — deployment constraint table referenced
+- [x] Threats to validity sub-section (n=3, Cassandra stub, single model, R3 missing)
+- [ ] Finding E: W1+R3 CatastrophicInterference — BLOCKED (requires R3 data / Docker)
+  - → See PAPER_DRAFT.md § SECTION VII
 
 ---
 
@@ -160,10 +150,12 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
 
 ## Back Matter
 
-- [ ] **Acknowledgment** — API credits (Anthropic), any funding
-- [ ] **References** — compile all [1]–[N] in IEEE format (target: 20–25 references)
-- [ ] **Author Biographies** — 1 paragraph each (education, current role, research interests)
+- [x] **Acknowledgment** — placeholder written (needs funding details)
+- [x] **References** — 14 fully verified IEEE-format citations [1]–[14]
+      (all DOIs confirmed via ACM DL, ACL Anthology, arXiv)
+- [~] **Author Biographies** — template written; needs real names/details
 - [ ] **Author Photos** — 1×1.25 inch headshots at 300 dpi
+  - → See PAPER_DRAFT.md § BACK MATTER
 
 ---
 

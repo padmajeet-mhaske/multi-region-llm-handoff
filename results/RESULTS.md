@@ -12,7 +12,8 @@ IEEE TKDE DK-GenAI Special Issue
 | [RUN-001](#run-001--pipeline-validation) | 2026-06-04 | Pipeline validation | claude-haiku-4-5 | 3/condition | $0.0352 | Complete ✅ |
 | [RUN-002](#run-002--full-three-experiment-suite-llm-as-a-judge) | 2026-06-04 | A+B+C full suite, LLM-as-a-Judge | claude-haiku-4-5 | 3/condition | ~$0.105 | Complete ✅ |
 | [RUN-003](#run-003--experiment-d-full-25-cell-compatibility-surface) | 2026-06-05 | Experiment D — full 5×5 matrix | claude-haiku-4-5 | 3/pair | ~$0.22 | Complete ✅ |
-| [RUN-004](#run-004--experiment-d-windows-first-complete-25-cell-run) | 2026-06-13 | Experiment D — first complete 25/25 cells incl. R3 | claude-haiku-4-5 | 10/pair | ~$0.75 | Complete ✅ |
+| [RUN-004](#run-004--experiment-d-windows-first-complete-25-cell-run) | 2026-06-13 | Experiment D — first complete 25/25 cells incl. R3 | claude-haiku-4-5 | 10/pair | ~$5 | Complete ✅ |
+| [RUN-005](#run-005--experiment-d-n30-statistical-validation-run) | 2026-06-13 | Experiment D — n=30 statistical validation | claude-haiku-4-5 | 30/pair | ~$15 | Complete ✅ |
 
 ---
 
@@ -625,4 +626,141 @@ W3's write_latency_ms_mean = 7.2ms (vs ~1.0ms for other write engines) — CRDT 
 set CASSANDRA_STUB=1
 set ANTHROPIC_API_KEY=sk-ant-...
 python -m experiments.run_experiment_d --enabled --iterations 10 --output results/run_004 --surface-plots
+```
+
+---
+
+## RUN-005 — Experiment D n=30 (Statistical Validation Run)
+
+**Date:** 2026-06-13  
+**Purpose:** Increase sample size from n=10 to n=30 per pair for Wilcoxon validity; validate RUN-004 findings  
+**Model:** `claude-haiku-4-5`  
+**Iterations per pair:** 30  
+**Pairs:** 25 (full 5×5 W×R matrix)  
+**Total iterations:** 750  
+**Environment:** Windows 11, Python 3.12.10, CASSANDRA_STUB=1, no Toxiproxy  
+**Estimated cost:** ~$15
+
+---
+
+### State Integrity Score Heatmap (mean, 0–1)
+
+|    | R0     | R1     | R2     | R3     | R4     |
+|----|--------|--------|--------|--------|--------|
+| W0 | 0.6500 | 0.6500 | 0.8000 | 0.8500 | 1.0000 |
+| W1 | 0.4750 | 0.6917 | 0.7667 | 0.9583 | 0.9833 |
+| W2 | 0.5333 | 0.7333 | 0.8000 | 0.9583 | 0.9750 |
+| W3 | 0.5250 | 0.7750 | 0.7417 | 0.9333 | 0.9917 |
+| W4 | 0.7750 | 0.7667 | 0.8667 | 0.8500 | 1.0000 |
+
+**Range:** 0.4750 (W1+R0) → 1.0000 (W0+R4, W4+R4)
+
+---
+
+### Handoff Latency Heatmap (mean ms)
+
+|    | R0   | R1   | R2   | R3   | R4   |
+|----|------|------|------|------|------|
+| W0 | 3863 | 4337 | 5088 | 4410 | 4780 |
+| W1 | 4088 | 4567 | 4673 | 4441 | 4786 |
+| W2 | 4109 | 4335 | 5455 | 4484 | 4691 |
+| W3 | 3947 | 4402 | 4822 | 4420 | 4584 |
+| W4 | 3985 | 4783 | 4830 | 4343 | 4299 |
+
+**Range:** 3863ms (W0+R0) → 5455ms (W2+R2)
+
+---
+
+### Retrieval Accuracy Heatmap (mean, 0–1)
+
+|    | R0     | R1     | R2     | R3     | R4     |
+|----|--------|--------|--------|--------|--------|
+| W0 | 0.9967 | 0.3793 | 0.8268 | 0.6413 | 0.7983 |
+| W1 | 0.9917 | 0.3578 | 0.8097 | 0.7327 | 0.8000 |
+| W2 | 0.9887 | 0.3633 | 0.8388 | 0.6677 | 0.8410 |
+| W3 | 0.9933 | 0.3697 | 0.8450 | 0.5943 | 0.8227 |
+| W4 | 0.9933 | 0.4000 | 0.7962 | 0.6100 | 0.8110 |
+
+---
+
+### Key Findings
+
+#### Finding 1 — R4 (MemGPT) Dominates Every Write Algorithm
+All five W×R4 cells land in the top 5 by integrity. W4+R4 and W0+R4 both reach **1.0000 with std=0.000** — perfect consistency across all 30 iterations. R4 is not just the best read strategy; it is also the **most reliable** (lowest variance). This makes it the only read engine suitable for production SLAs.
+
+| W×R4 pair | Integrity | Std  | Latency |
+|-----------|-----------|------|---------|
+| W0+R4     | 1.0000    | 0.00 | 4780ms  |
+| W1+R4     | 0.9833    | 0.09 | 4786ms  |
+| W2+R4     | 0.9750    | 0.13 | 4691ms  |
+| W3+R4     | 0.9917    | 0.04 | 4584ms  |
+| W4+R4     | 1.0000    | 0.00 | 4299ms  |
+
+#### Finding 2 — W4+R4 is Pareto-Optimal
+Among the top-integrity cells, **W4+R4 has the lowest latency (4299ms)**. It achieves maximum integrity while costing the least in handoff time — the only pair that wins on both dimensions simultaneously. This is the recommended production configuration.
+
+#### Finding 3 — R0 Column is Unreliable (High Variance)
+R0 (Full Dump) has the worst-performing column. Every W×R0 cell has integrity ≤ 0.775 **and** std ≥ 0.36 — meaning results vary wildly from iteration to iteration. W1+R0 is the single worst cell (0.4750). Despite R0 achieving near-perfect retrieval accuracy (0.99+), the LLM judge scores session continuity poorly — the model is overwhelmed by the raw dump and cannot demonstrate coherent handoff behaviour.
+
+| W×R0 pair | Integrity | Std  |
+|-----------|-----------|------|
+| W0+R0     | 0.6500    | 0.42 |
+| W1+R0     | 0.4750    | 0.40 |
+| W2+R0     | 0.5333    | 0.45 |
+| W3+R0     | 0.5250    | 0.41 |
+| W4+R0     | 0.7750    | 0.36 |
+
+#### Finding 4 — R1 Uniformly Weak Retrieval Accuracy (~0.37)
+R1 (Milestone Hydration) retrieval accuracy is 0.358–0.400 across all write engines — far below every other read strategy. R1 discards recency context and only reconstructs milestone turns; the LLM is unable to retrieve granular conversation details. This confirms the **double-filter anti-pattern** (W1+R1 = 0.6917 integrity) documented in the paper discussion.
+
+#### Finding 5 — W2+R2 n=10 Result was Noise (Corrected)
+RUN-004 (n=10) showed W2+R2 = 0.450 (flagged as "worst non-R1 cell"). At n=30, W2+R2 = **0.800** — a +0.350 reversal. The std=0.344 explains this: with only 10 samples, a run of bad iterations produced a misleading mean. The RUN-004 finding is retracted. W2+R2 is mid-range, not an anti-pattern.
+
+#### Finding 6 — Only One Statistically Significant Finding at n=30
+Wilcoxon signed-rank test (baseline = W0+R0, corrected for 24 comparisons):  
+- **W1+R0 vs W0+R0: p=0.027, significant** (effect size = 1.80, median reduction = 0.75)  
+- All other 23 comparisons: p > 0.05, not significant  
+- No latency differences reach significance  
+
+This is an important paper result: **at n=30 most write-engine differences wash out**. The read engine (column) is the dominant factor in determining integrity; write engine choice within the same read column produces overlapping distributions. A higher-n run (n=100) is needed to resolve write-engine effects.
+
+#### Finding 7 — R2 and R0 Columns have Highest Noise
+16 of 25 cells have std > 0.25. The noisy cells cluster in the R0, R1, and R2 columns. R4 cells are stable (std 0.00–0.13). R3 cells are moderate (std 0.11–0.30). The stability ordering is: **R4 > R3 > R2 ≈ R1 > R0**.
+
+---
+
+### RUN-004 vs RUN-005 Integrity Delta
+
+| Pair   | n=10  | n=30  | Δ      | Verdict |
+|--------|-------|-------|--------|---------|
+| W2_R2  | 0.450 | 0.800 | +0.350 | n=10 was noise — retracted |
+| W3_R1  | 0.575 | 0.775 | +0.200 | n=10 underestimated |
+| W3_R2  | 0.925 | 0.742 | -0.183 | n=10 overestimated |
+| W1_R2  | 0.950 | 0.767 | -0.183 | n=10 overestimated |
+| W1_R1  | 0.850 | 0.692 | -0.158 | n=10 overestimated |
+| W4_R4  | 1.000 | 1.000 | 0.000  | Stable — confirmed |
+| W0_R4  | 1.000 | 1.000 | 0.000  | Stable — confirmed |
+
+Large deltas are concentrated in high-variance cells (R0, R1, R2 columns). All R4 cells are stable across both runs. This validates R4's reliability advantage.
+
+---
+
+### What Changes for RUN-006 (Full Paper Quality)
+
+| Gap | Impact | Fix |
+|-----|--------|-----|
+| n=30 (current) | Only 1/24 pair comparisons reach significance | n≥100 for write-engine resolution |
+| CASSANDRA_STUB=1 | W1 selective-flush bypassed; W1+R3 CatastrophicInterference unmeasured | Docker + real Cassandra |
+| No Toxiproxy | WAN latency absent; Fig.7 box plot impossible | `python config/toxiproxy_setup.py` |
+| Exp A+B+C not run | Tables III–IV (ablations) missing | Run with n≥30 each |
+
+---
+
+### Reproduce RUN-005
+
+```cmd
+:: Windows CMD
+set CASSANDRA_STUB=1
+set ANTHROPIC_API_KEY=sk-ant-...
+python -m experiments.run_experiment_d --enabled --iterations 30 --output results/run_005 --surface-plots
 ```

@@ -7,8 +7,17 @@ Research question: Which read strategy minimizes handoff_latency_ms and
 context_token_count while maximizing state_integrity_score?
 
 Usage:
+    # Linux / macOS
     ANTHROPIC_API_KEY=<your_key> python -m experiments.run_experiment_b \
         --iterations 100 --output results/experiment_b
+
+    # Windows PowerShell
+    $env:ANTHROPIC_API_KEY="<your_key>"
+    python -m experiments.run_experiment_b --iterations 100 --output results/experiment_b
+
+    # Windows Command Prompt
+    set ANTHROPIC_API_KEY=<your_key>
+    python -m experiments.run_experiment_b --iterations 100 --output results/experiment_b
 """
 import argparse
 import logging

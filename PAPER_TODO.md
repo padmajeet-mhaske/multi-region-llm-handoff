@@ -34,17 +34,33 @@ Branch: `claude/multi-region-redis-testing-9GiVw`
   - n=30/pair  → ~$2.25   (acceptable for validation run)
   - n=100/pair → ~$7.50   (paper quality — recommended)
 
+### Step 3b — Windows-specific setup (you are on Windows PowerShell / Python 3.12.10)
+- [ ] Confirm Docker Desktop is running: open Docker Desktop app, wait for green "Running" status
+- [ ] Cassandra takes ~60 sec to be ready after `docker compose up -d` — wait for it:
+  ```powershell
+  # Run in PowerShell from multi-region-llm\ directory
+  docker compose up -d
+  docker compose ps   # wait until cassandra shows "healthy"
+  ```
+- [ ] Install Python dependencies:
+  ```powershell
+  cd C:\Users\padma\multi-region\pedomatic\multi-region-llm
+  pip install -r requirements.txt   # includes sentence-transformers, seaborn
+  ```
+- [ ] Set API key in PowerShell (do NOT hardcode in any file):
+  ```powershell
+  $env:ANTHROPIC_API_KEY="sk-ant-..."
+  ```
+
 ### Step 4 — Run the full experiment together
 - [ ] Start containers: `docker compose up -d`
 - [ ] Enable WAN simulation: `python config/toxiproxy_setup.py`
   - Adds 120ms + 10ms jitter between Redis A → Cassandra (realistic cross-region latency)
-- [ ] Run Experiment D (n=100):
-  ```bash
-  ANTHROPIC_API_KEY=<new_key> \
-  python -m experiments.run_experiment_d \
-    --enabled --iterations 100 \
-    --output results/run_004 \
-    --surface-plots
+- [ ] Run Experiment D (n=100) — **Windows PowerShell commands**:
+  ```powershell
+  cd C:\Users\padma\multi-region\pedomatic\multi-region-llm
+  $env:ANTHROPIC_API_KEY="sk-ant-..."
+  python -m experiments.run_experiment_d --enabled --iterations 100 --output results/run_004 --surface-plots
   ```
 - [ ] Output goes to `results/run_004/` — will auto-generate 3D surface plots
 

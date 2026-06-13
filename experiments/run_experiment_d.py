@@ -27,10 +27,17 @@ Cost estimate (claude-haiku-4-5):
 ⚠ DISABLED BY DEFAULT — pass --enabled to run.
 
 Usage:
-    ANTHROPIC_API_KEY=<key> python -m experiments.run_experiment_d \\
-        --enabled \\
-        --iterations 100 \\
-        --output results/experiment_d
+    # Linux / macOS
+    ANTHROPIC_API_KEY=<key> python -m experiments.run_experiment_d \
+        --enabled --iterations 100 --output results/experiment_d
+
+    # Windows PowerShell  ← use this on your machine
+    $env:ANTHROPIC_API_KEY="<key>"
+    python -m experiments.run_experiment_d --enabled --iterations 100 --output results/experiment_d
+
+    # Windows Command Prompt
+    set ANTHROPIC_API_KEY=<key>
+    python -m experiments.run_experiment_d --enabled --iterations 100 --output results/experiment_d
 """
 import argparse
 import logging

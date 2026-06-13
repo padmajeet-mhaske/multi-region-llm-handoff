@@ -27,9 +27,18 @@ restricts R3's embedding corpus to traces actually available in cross-region
 Cassandra storage at handoff time.
 
 Usage:
-    ANTHROPIC_API_KEY=<key> python -m experiments.run_experiment_c \\
-        --iterations 100 --best-write W1 --best-read R1 \\
+    # Linux / macOS
+    ANTHROPIC_API_KEY=<key> python -m experiments.run_experiment_c \
+        --iterations 100 --best-write W1 --best-read R1 \
         --output results/experiment_c
+
+    # Windows PowerShell
+    $env:ANTHROPIC_API_KEY="<key>"
+    python -m experiments.run_experiment_c --iterations 100 --best-write W1 --best-read R1 --output results/experiment_c
+
+    # Windows Command Prompt
+    set ANTHROPIC_API_KEY=<key>
+    python -m experiments.run_experiment_c --iterations 100 --best-write W1 --best-read R1 --output results/experiment_c
 """
 import argparse
 import json

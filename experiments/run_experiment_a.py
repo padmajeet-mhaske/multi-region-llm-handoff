@@ -7,8 +7,17 @@ Research question: Which write strategy minimizes write_latency_ms and
 flush_latency_ms while maintaining state_integrity_score?
 
 Usage:
+    # Linux / macOS
     ANTHROPIC_API_KEY=<your_key> python -m experiments.run_experiment_a \
         --iterations 100 --output results/experiment_a
+
+    # Windows PowerShell
+    $env:ANTHROPIC_API_KEY="<your_key>"
+    python -m experiments.run_experiment_a --iterations 100 --output results/experiment_a
+
+    # Windows Command Prompt
+    set ANTHROPIC_API_KEY=<your_key>
+    python -m experiments.run_experiment_a --iterations 100 --output results/experiment_a
 """
 import argparse
 import logging

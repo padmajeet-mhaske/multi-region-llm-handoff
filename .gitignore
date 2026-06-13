@@ -12,6 +12,8 @@ results/**
 !results/run_004/**
 !results/run_005/
 !results/run_005/**
+!results/run_006/
+!results/run_006/**
 figures/**
 !figures/
 .DS_Store

@@ -8,6 +8,8 @@ results/**
 !results/run_002/**
 !results/run_003/
 !results/run_003/**
+!results/run_004/
+!results/run_004/**
 figures/**
 !figures/
 .DS_Store

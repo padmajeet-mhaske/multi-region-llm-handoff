@@ -1,0 +1,5 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+write_latency_ms,C0_Baseline,C1_W1_Selective,100,0.0,1.0,False,-628.0909212085776,-1.0809499999595573
+write_latency_ms,C0_Baseline,C1_W2_WAL,100,0.0,1.0,False,-992.5174448680348,-1.7081312525988324
+write_latency_ms,C0_Baseline,C1_W3_CRDT,100,0.0,1.0,False,-3779.7526188197903,-6.504987502921722
+write_latency_ms,C0_Baseline,C1_W4_Adaptive,100,0.0,1.0,False,-584.0179337224149,-1.0051000008388655

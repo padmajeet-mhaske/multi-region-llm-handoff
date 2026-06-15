@@ -1,0 +1,5 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+handoff_latency_ms,C0_Baseline,C2_R1_Hydration,100,1103.0,0.9999994940187907,False,-0.6195231897577118,-439.4991000153823
+handoff_latency_ms,C0_Baseline,C2_R2_Summary,100,85.0,1.0,False,-1.8758987044138218,-1330.7908500282792
+handoff_latency_ms,C0_Baseline,C2_R3_RAG,100,993.0,0.999999930858063,False,-0.8553507780478266,-606.7987500136951
+handoff_latency_ms,C0_Baseline,C2_R4_MemGPT,100,987.0,0.999999938218023,False,-0.93694052814399,-664.6797499997774

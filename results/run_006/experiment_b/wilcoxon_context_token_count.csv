@@ -1,0 +1,5 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+context_token_count,C0_Baseline,C2_R1_Hydration,100,5049.0,2.0072856510808247e-18,True,3.0906023712838055,496.0
+context_token_count,C0_Baseline,C2_R2_Summary,100,5050.0,1.9449853661070128e-18,True,3.88194612360849,623.0
+context_token_count,C0_Baseline,C2_R3_RAG,100,4764.0,6.886069952254503e-15,True,1.8475072642855814,296.5
+context_token_count,C0_Baseline,C2_R4_MemGPT,100,4275.0,8.874836209415703e-10,True,0.9907374536978328,159.0

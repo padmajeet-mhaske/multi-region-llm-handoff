@@ -1,0 +1,5 @@
+metric,baseline,comparison,n,statistic,p_value,significant_p05,effect_size,median_reduction
+estimated_cost_usd,C0_Baseline,C2_R1_Hydration,100,4251.0,1.4732351241189644e-09,True,0.8945663813311464,0.0003479999999999998
+estimated_cost_usd,C0_Baseline,C2_R2_Summary,100,0.0,1.0,False,-5.853240374399487,-0.002277
+estimated_cost_usd,C0_Baseline,C2_R3_RAG,100,1819.0,0.9923976128900149,False,-0.5244009821596373,-0.00020399999999999975
+estimated_cost_usd,C0_Baseline,C2_R4_MemGPT,100,1150.5,0.9999988549646293,False,-0.7364749087683146,-0.00028649999999999986

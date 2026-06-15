@@ -288,6 +288,10 @@ def main():
                         help="Skip heatmap and 3D surface generation")
     parser.add_argument("--surface-plots", action="store_true", default=False,
                         help="Also generate 3D surface plots (requires matplotlib mpl_toolkits)")
+    parser.add_argument("--write-filter", default=None,
+                        help="Comma-separated write algos to run, e.g. W0,W1 (default: all 5)")
+    parser.add_argument("--read-filter", default=None,
+                        help="Comma-separated read algos to run, e.g. R3 (default: all 5)")
     args = parser.parse_args()
 
     # Guard: must pass --enabled explicitly
@@ -311,10 +315,22 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pairs = build_full_matrix_pairs()
+
+    # Apply write/read filters if specified
+    if args.write_filter:
+        allowed_w = [w.strip().upper() for w in args.write_filter.split(",")]
+        pairs = [(c, w, r, ic) for c, w, r, ic in pairs if w in allowed_w]
+    if args.read_filter:
+        allowed_r = [r.strip().upper() for r in args.read_filter.split(",")]
+        pairs = [(c, w, r, ic) for c, w, r, ic in pairs if r in allowed_r]
+
     print_cost_estimate(args.iterations)
 
     logger.info("=== Experiment D: Full Write×Read Compatibility Surface ===")
-    logger.info("Pairs: %d  (5 write × 5 read)", len(pairs))
+    logger.info("Pairs: %d  (%s write × %s read)",
+                len(pairs),
+                args.write_filter or "all 5",
+                args.read_filter or "all 5")
     logger.info("Iterations per pair: %d", args.iterations)
     logger.info("Total iterations: %d", len(pairs) * args.iterations)
     logger.info("Model: %s", args.model)

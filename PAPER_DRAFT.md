@@ -517,20 +517,20 @@ a property of Claude's context utilization behavior.
 - [x] Algorithm 8  — R2 LLM Summarization
 - [x] Algorithm 9  — R3 Semantic RAG
 - [x] Algorithm 10 — R4 MemGPT Hierarchical Retrieval
-- [x] Conclusion (4 paragraphs)
+- [x] Section I — Introduction (prose, RQs, contributions)
+- [x] Section II — Related Work + 14 citations
+- [x] Section III — System Architecture (prose + Fig. 1)
+- [x] Section V — Experimental Methodology (prose + Table I, II)
+- [x] Section VI — Results (n=100 RUN-006 + RUN-007 real Cassandra; Tables III–VIII, Figs. 2–4)
+- [x] Section VII — Discussion (5 Findings + Threats to Validity)
+- [x] Section VIII — Conclusion (4 paragraphs + future work)
 
 ## Still TODO (see PAPER_TODO.md)
 
-- [ ] Section I — Introduction (prose)
-- [ ] Section II — Related Work + citations
-- [ ] Section III — System Architecture (prose + Fig. 1)
-- [ ] Section V — Experimental Methodology (prose + Table I, II)
-- [ ] Section VI — Results (requires n≥30 data)
-- [ ] Section VII — Discussion (requires R3 data for W1+R3 finding)
 - [ ] Title page, authors, affiliations, ORCIDs
-- [ ] Acknowledgment
-- [ ] References [1]–[N]
+- [ ] Acknowledgment (funding text)
 - [ ] Author biographies
+- [ ] Full 20-cell real-Cassandra Experiment D (RUN-008, deferred)
 
 ---
 
@@ -833,14 +833,14 @@ and read control — enables consistent cross-experiment comparison.
 |-----------|---------------|
 | Redis A (write region) | redis-server 7.0.15, port 6379, maxmemory 512 MB |
 | Redis B (read region) | redis-server 7.0.15, port 6380, maxmemory 512 MB |
-| Cassandra | Apache Cassandra 4.1 (stub in RUN-001–003; Docker target for RUN-004+) |
-| WAN simulation | Toxiproxy 2.x, 120 ms added latency + 10 ms jitter (deferred to RUN-004+) |
+| Cassandra (RUN-001–006) | In-memory stub (CASSANDRA\_STUB=1); flush latencies near-zero |
+| Cassandra (RUN-007) | Apache Cassandra 4.1, Docker Desktop, localhost:9042, real flushes |
+| WAN simulation | Toxiproxy 2.x, 120 ms latency + 10 ms jitter (deferred to future work) |
 | LLM model | claude-haiku-4-5 ($1.00/1M input, $5.00/1M output tokens) |
-| Embedding model | all-MiniLM-L6-v2 via sentence-transformers (R3 only; requires Docker) |
-| Host | Cloud sandbox, Linux, Python 3.11 |
+| Embedding model | all-MiniLM-L6-v2 via sentence-transformers (R3 only) |
+| Host | Windows 11, Python 3.12.10 (RUN-006, RUN-007) |
 | Session length | 5 turns per iteration (3 user + 2 assistant, 1 milestone injected) |
-| Iterations (prototype) | n = 3 per condition (RUN-001–003) |
-| Iterations (paper target) | n ≥ 100 per condition (RUN-004+) |
+| Iterations (paper quality) | n = 100 per condition (RUN-006); n = 30 per pair (RUN-007) |
 
 ### C. Metrics Definitions
 
@@ -889,9 +889,9 @@ complete.
 
 Wilcoxon signed-rank tests (paired, two-tailed) compare each algorithm's metric
 distribution against the W0+R0 baseline, with Holm-Bonferroni correction for multiple
-comparisons. Prototype runs at n = 3 are presented for directional analysis only;
-p-values and effect sizes will be reported for paper-quality runs at n ≥ 100
-(target: RUN-004+).
+comparisons. All significance claims in §VI are based on n = 100 per condition
+(RUN-006). The smaller RUN-007 sample (n = 30, R3 column only) is used for directional
+comparison against RUN-006 stub values; no significance claims are drawn from it.
 
 ### F. Reproducibility
 
@@ -917,11 +917,12 @@ ANTHROPIC_API_KEY=<key> \
 
 ## SECTION VI — RESULTS
 
-All results in this section derive from RUN-006, the paper-quality run at n = 100
+Tables III–VII and Figs. 2–3 derive from RUN-006, the paper-quality run at n = 100
 iterations per condition, conducted on Windows 11 with Python 3.12.10, redis-server
-7.0.15, CASSANDRA\_STUB=1 (Cassandra in-memory proxy), and claude-haiku-4-5. Raw
-CSVs, per-iteration logs, heatmaps, and 3-D surface plots are available in
-`results/run_006/` of the accompanying repository.
+7.0.15, CASSANDRA\_STUB=1, and claude-haiku-4-5. Table VIII and Fig. 4 derive from
+RUN-007 (n = 30, R3 column only, real Apache Cassandra 4.1). Raw CSVs, per-iteration
+logs, heatmaps, and 3-D surface plots are available in `results/run_006/` and
+`results/run_007/` of the accompanying repository.
 
 ### A. Experiment A: Write Engine Ablation
 
@@ -1016,6 +1017,14 @@ joint baseline.
 | **W3** | 3686 | 4199 | 5058 | 4395 | 4773 |
 | **W4** | 3941 | 4365 | 4997 | 4455 | 4442 |
 
+![Fig. 2. State Integrity 5×5 heatmap — Experiment D, n=100 (RUN-006, stub Cassandra). Colour scale: blue = low integrity, yellow = high. The R4 column (right) and W1+R4 cell are clearly dominant.](results/run_006/experiment_d/experiment_d_heatmap_state_integrity_score.png)
+
+*Fig. 2. State integrity score (mean) across the full 5×5 compatibility surface (RUN-006, n = 100 per cell). Colour: dark blue = 0.5, bright yellow = 1.0. R4 column dominates; W1+R4 = 0.985 (top-right).*
+
+![Fig. 3. Handoff latency p50 (ms) heatmap — Experiment D, n=100 (RUN-006, stub Cassandra). R2 column is consistently slowest due to summarization overhead.](results/run_006/experiment_d/experiment_d_heatmap_handoff_latency_ms.png)
+
+*Fig. 3. Handoff latency p50 (ms) across the 5×5 surface. R2 column (LLM summarization) adds ~1,300 ms overhead vs. baseline. W3+R0 is the fastest latency cell (3,686 ms).*
+
 **RQ1 — Write engine effect on latency.** No write engine produces a statistically
 significant improvement over W0 baseline in end-to-end handoff latency. The single
 significant latency finding is W3+R0 vs. W0+R0 (p = 0.006, effect = 0.107) — a
@@ -1027,7 +1036,7 @@ governed entirely by the read column. Across all five write engines, the read
 strategy determines the integrity tier:
 
 - **R4 tier:** σ_integrity ∈ [0.955, 0.985], std ∈ [0.085, 0.157] — consistently excellent
-- **R3 tier:** σ_integrity ∈ [0.918, 0.933], std ∈ [0.162, 0.200] — very good
+- **R3 tier (stub):** σ_integrity ∈ [0.918, 0.933], std ∈ [0.162, 0.200] — very good; real Cassandra values in §VI-D
 - **R2 tier:** σ_integrity ∈ [0.788, 0.860], std ∈ [0.303, 0.375] — moderate, high variance
 - **R1 tier:** σ_integrity ∈ [0.675, 0.723], std ∈ [0.364, 0.399] — weak
 - **R0 tier:** σ_integrity ∈ [0.528, 0.658], std ∈ [0.388, 0.437] — unreliable
@@ -1040,8 +1049,20 @@ significance at n = 100.
 exhibits high variance (std > 0.36). The worst cell is W1+R0 (σ_integrity = 0.528),
 confirming the W1+R0 anti-pattern: W1's selective flush withholds non-milestone traces
 from Cassandra, yet R0 attempts to reconstruct the full session from Cassandra storage,
-producing an incomplete and misleading context dump. RUN-007 (real Cassandra, n = 30) quantifies the R3 column: W4+R3 = 0.942 is optimal
-and W1+R3 = 0.892 — not catastrophic, but -0.041 below the W4+R3 peak (§VII-E).
+producing an incomplete and misleading context dump. The W1+R1 double-filter
+(σ_integrity = 0.703) is the second anti-pattern: both layers filter to milestones,
+discarding the intermediate reasoning steps that carry procedural state (§VII-B).
+
+### D. Experiment D*: R3 Column with Real Cassandra (RUN-007)
+
+RUN-007 replaces the stub-mode R3 values with real Apache Cassandra measurements
+(n = 30 per write engine, Docker Desktop). The R3 column under real Cassandra differs
+meaningfully from stub values, revealing write-engine sensitivity invisible in stub
+mode (§VII-E).
+
+![Fig. 4. RUN-007 state integrity heatmap — R3 column only (5×1), n=30 per cell, real Apache Cassandra. W4+R3 = 0.942 (top); W0+R3 = 0.858 (bottom). Compare to Table V R3 column for stub values.](results/run_007/experiment_d_heatmap_state_integrity_score.png)
+
+*Fig. 4. State integrity for the R3 column under real Cassandra (RUN-007, n = 30). W4+R3 = 0.942 (best), W0+R3 = 0.858 (worst). Full comparison with stub values in Table VIII (§VII-E).*
 
 **RQ4 — Co-design advantage.** The Pareto-optimal cell is **W1+R4**
 (σ_integrity = 0.985, std = 0.085, handoff latency 4,626 ms). No independently
@@ -1327,4 +1348,4 @@ and multi-agent coordination. [Membership: Member/Senior Member/Fellow, IEEE.]
 
 ---
 
-*Last updated: 2026-06-09*
+*Last updated: 2026-06-16 — RUN-007 real Cassandra R3 analysis integrated; §VII Finding 5 added; Figs. 2–4 added*

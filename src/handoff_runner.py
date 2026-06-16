@@ -17,14 +17,12 @@ import os
 import redis
 
 if os.environ.get("CASSANDRA_STUB", "").strip() != "1":
-    # asyncore was removed in Python 3.12; import asyncio reactor first so the
-    # cassandra driver picks it up as the default connection class.
+    from cassandra.cluster import Cluster
+    from cassandra.policies import DCAwareRoundRobinPolicy
     try:
         from cassandra.io.asyncioreactor import AsyncioConnection as _CassandraConn
     except ImportError:
         _CassandraConn = None
-    from cassandra.cluster import Cluster
-    from cassandra.policies import DCAwareRoundRobinPolicy
 
 from src.agent_simulator import AgentSimulator, AgentSession
 from src.metrics_collector import MetricsCollector, IterationMetrics

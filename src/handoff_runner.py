@@ -14,7 +14,41 @@ from dataclasses import asdict
 from typing import Optional
 
 import os
+import sys
 import redis
+
+# asyncore/asynchat were removed in Python 3.12. Provide minimal stubs so
+# cassandra-driver's asyncore reactor can be imported (it won't be used;
+# we force AsyncioConnection below). Must happen before any cassandra import.
+if sys.version_info >= (3, 12) and "asyncore" not in sys.modules:
+    import types as _t
+    _ao = _t.ModuleType("asyncore")
+    class _dispatcher:  # noqa: N801
+        def __init__(self, sock=None, map=None):
+            self._map = {} if map is None else map
+            self.socket = sock
+            self._fileno = None if sock is None else sock.fileno()
+        def handle_error(self): pass
+        def close(self): pass
+        def fileno(self): return self._fileno
+    _ao.dispatcher = _dispatcher
+    _ao.loop = lambda *a, **kw: None
+    _ao.socket_map = {}
+    sys.modules["asyncore"] = _ao
+    _ac = _t.ModuleType("asynchat")
+    _ac.async_chat = _dispatcher
+    sys.modules["asynchat"] = _ac
+    del _ao, _ac, _dispatcher, _t
+
+# On Windows + Python 3.12 the default ProactorEventLoop does not support
+# add_reader, which asyncioreactor requires. Switch to SelectorEventLoop first.
+if sys.platform == "win32" and sys.version_info >= (3, 12):
+    import asyncio as _asyncio
+    if not isinstance(_asyncio.get_event_loop_policy(),
+                      _asyncio.WindowsSelectorEventLoopPolicy):
+        _asyncio.set_event_loop_policy(_asyncio.WindowsSelectorEventLoopPolicy())
+    _asyncio.set_event_loop(_asyncio.new_event_loop())
+    del _asyncio
 
 if os.environ.get("CASSANDRA_STUB", "").strip() != "1":
     from cassandra.cluster import Cluster

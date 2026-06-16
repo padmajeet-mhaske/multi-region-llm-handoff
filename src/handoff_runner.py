@@ -17,6 +17,12 @@ import os
 import redis
 
 if os.environ.get("CASSANDRA_STUB", "").strip() != "1":
+    # asyncore was removed in Python 3.12; import asyncio reactor first so the
+    # cassandra driver picks it up as the default connection class.
+    try:
+        from cassandra.io.asyncioreactor import AsyncioConnection as _CassandraConn
+    except ImportError:
+        _CassandraConn = None
     from cassandra.cluster import Cluster
     from cassandra.policies import DCAwareRoundRobinPolicy
 
@@ -178,12 +184,15 @@ def connect_cassandra(host: str = "localhost", port: int = 9042):
         print("  [stub] Using in-memory Cassandra stub (CASSANDRA_STUB=1)")
         return get_stub_session()
 
-    cluster = Cluster(
-        [host],
+    cluster_kwargs = dict(
+        contact_points=[host],
         port=port,
         load_balancing_policy=DCAwareRoundRobinPolicy(local_dc="dc1"),
         protocol_version=4,
     )
+    if _CassandraConn is not None:
+        cluster_kwargs["connection_class"] = _CassandraConn
+    cluster = Cluster(**cluster_kwargs)
     session = cluster.connect()
     session.execute(CASSANDRA_KEYSPACE_DDL)
     session.execute(CASSANDRA_TABLE_DDL)

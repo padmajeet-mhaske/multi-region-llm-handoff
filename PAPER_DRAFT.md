@@ -1,9 +1,12 @@
 # Paper Draft — IEEE TKDE DK-GenAI Special Issue
 ## Write-Read Co-Design for Cross-Region LLM Agent Session Handoff: An Exhaustive Compatibility Surface Analysis
 
-> **Status:** Draft — Abstract, Index Terms, Equations, Algorithms, Conclusion, Introduction,  
-> Architecture, Methodology, Discussion, Back Matter  
-> **Remaining:** Related Work (citations pending research), Results tables (need n≥30 data)  
+**Padmajeet Dashrath Mhaske**  
+Vice President, AI/ML Platform Architect  
+JPMorgan Chase  
+ORCID: [0009-0008-6285-813X](https://orcid.org/0009-0008-6285-813X)
+
+> **Status:** Draft — all sections written; pending title-page formatting for IEEE submission  
 > **Branch:** `claude/multi-region-redis-testing-9GiVw`
 
 ---
@@ -527,9 +530,9 @@ a property of Claude's context utilization behavior.
 
 ## Still TODO (see PAPER_TODO.md)
 
-- [ ] Title page, authors, affiliations, ORCIDs
-- [ ] Acknowledgment (funding text)
-- [ ] Author biographies
+- [x] Title page, authors, affiliations, ORCIDs
+- [x] Acknowledgment (self-funded)
+- [x] Author biography
 - [ ] Full 20-cell real-Cassandra Experiment D (RUN-008, deferred)
 
 ---
@@ -1257,19 +1260,29 @@ question addressed in §VIII.
 
 ### Acknowledgment
 
-The authors thank Anthropic for API access used in the experimental evaluation.
-[Add funding acknowledgment if applicable.]
+This work was conducted independently and is self-funded. The author thanks
+Anthropic for API access to claude-haiku-4-5 used throughout the experimental
+evaluation. The views expressed are solely those of the author and do not represent
+the views of JPMorgan Chase & Co.
 
 ---
 
-### Author Biographies
+### Author Biography
 
-**First A. Author** [photo] received the [degree] degree in [field] from [University],
-[City], [Country], in [year]. [He/She/They] is currently [position] at [institution].
-[His/Her/Their] research interests include distributed systems, LLM infrastructure,
-and multi-agent coordination. [Membership: Member/Senior Member/Fellow, IEEE.]
-
-**Second B. Author** photograph and biography not available at the time of publication.
+**Padmajeet Dashrath Mhaske** (ORCID: 0009-0008-6285-813X) is a Vice President
+and AI/ML Platform Architect at JPMorgan Chase, where he leads the architecture and
+development of large-scale, high-performance AI/ML solutions. With more than 15 years
+of experience in enterprise software and AI infrastructure, he specializes in
+translating strategic vision into production platforms using technologies including
+TensorFlow, PyTorch, Docker, and Kubernetes. His work at JPMC combines deep technical
+expertise with risk management and regulatory compliance, ensuring that AI/ML
+platforms operate reliably within the complex financial industry landscape. He is a
+proven leader who builds and manages high-performing engineering teams and excels at
+bridging technical and non-technical stakeholders through Agile and DevOps
+methodologies. His research interests include distributed systems, multi-region LLM
+agent infrastructure, context management for long-running AI agents, and
+CRDT-based replication for active-active deployments. This work was conducted
+independently and is self-funded.
 
 ---
 
